@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { FileText, Plus, Sparkles, Trash2 } from "lucide-react";
 import { AppHeader, DemoBanner } from "@/components/app-header";
+import { MarketingHero } from "@/components/marketing-hero";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useConfig } from "@/lib/client/config";
@@ -54,8 +55,9 @@ export default function Dashboard() {
       <DemoBanner />
       <AppHeader />
       <main className="mx-auto w-full max-w-4xl flex-1 space-y-8 p-6">
-        <section className="rounded-lg border bg-white p-5">
-          <h1 className="text-lg font-semibold">New email</h1>
+        <MarketingHero />
+        <section id="new-email" className="scroll-mt-6 rounded-lg border bg-white p-5">
+          <h2 className="text-lg font-semibold">New email</h2>
           <p className="mt-1 text-sm text-neutral-500">Pick a brand. Each brand has a fixed set of approved modules.</p>
           <div className="mt-4 grid gap-2 sm:grid-cols-3">
             {BRANDS.map((b) => (
