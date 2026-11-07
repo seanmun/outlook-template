@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { ArrowDown, Download, LayoutTemplate, ScanEye, Sparkles } from "lucide-react";
+import { OutlookNoTicker } from "./outlook-no-ticker";
 
 const STEPS = [
   { icon: LayoutTemplate, title: "Pick a brand", body: "Each brand gets its own approved modules. Nobody gets to freestyle the footer." },
@@ -133,6 +134,7 @@ export function MarketingHero() {
         </div>
         <EmailMock />
       </div>
+      <OutlookNoTicker />
       <div className="relative grid border-t bg-neutral-50/80 sm:grid-cols-3">
         {STEPS.map((s, i) => (
           <div key={s.title} className="flex gap-3 border-b p-5 last:border-b-0 sm:border-r sm:border-b-0 sm:last:border-r-0">
