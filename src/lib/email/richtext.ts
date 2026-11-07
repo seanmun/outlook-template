@@ -101,6 +101,8 @@ export function renderRichText(doc: RichText, s: RichTextStyle): string {
       if (block.type === "paragraph") {
         return `<p style="${textStyle(s, gap)}">${renderInline(block.content, s)}</p>`;
       }
+      // Lists: zero top/bottom margin and padding by default (longhands so Outlook doesn't apply its own);
+      // the left margin provides the bullet indent.
       const items = block.content
         .map((item, j) => {
           const inner = item.content.map((p) => renderInline(p.content, s)).join("<br>");
@@ -108,7 +110,19 @@ export function renderRichText(doc: RichText, s: RichTextStyle): string {
           return `<li style="${textStyle(s, itemGap)}">${inner}</li>`;
         })
         .join("");
-      return `<ul style="${style({ margin: `0 0 ${gap}px 24px`, padding: "0", "font-family": s.fontFamily, "font-size": s.fontSize, color: s.color })}">${items}</ul>`;
+      return `<ul style="${style({
+        "margin-top": "0",
+        "margin-bottom": "0",
+        "margin-right": "0",
+        "margin-left": "24px",
+        "padding-top": "0",
+        "padding-bottom": "0",
+        "padding-right": "0",
+        "padding-left": "0",
+        "font-family": s.fontFamily,
+        "font-size": s.fontSize,
+        color: s.color,
+      })}">${items}</ul>`;
     })
     .join("");
 }

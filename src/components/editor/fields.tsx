@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { AlignCenter, AlignLeft, AlignRight, ImagePlus, Link2, Link2Off, Trash2 } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, ImagePlus, Link2, Link2Off, Minus, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -148,36 +148,90 @@ export function AlignField(props: { label: string; value: Align; onChange: (v: A
   );
 }
 
+const PADDING_MIN = 0;
+const PADDING_MAX = 120;
+const PADDING_STEP = 5;
+const clampPadding = (n: number) => Math.max(PADDING_MIN, Math.min(PADDING_MAX, Math.round(n)));
+
+/** One side of the padding cross: label, then [−] [number] [+]. Buttons step by 5; the box takes any exact value. */
+function PaddingSide(props: { id: string; side: keyof Padding; value: number; onSet: (v: number) => void }) {
+  const [draft, setDraft] = useState(String(props.value));
+  const [prev, setPrev] = useState(props.value);
+  if (props.value !== prev) {
+    setPrev(props.value);
+    setDraft(String(props.value));
+  }
+  const label = props.side.charAt(0).toUpperCase() + props.side.slice(1);
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <label htmlFor={props.id} className="text-[10px] uppercase tracking-wide text-neutral-500">
+        {label}
+      </label>
+      <div className="flex items-center rounded-md border">
+        <button
+          type="button"
+          aria-label={`Decrease ${props.side} padding by ${PADDING_STEP}`}
+          className="flex size-7 items-center justify-center text-neutral-600 hover:bg-neutral-100 disabled:opacity-30"
+          disabled={props.value <= PADDING_MIN}
+          onClick={() => props.onSet(clampPadding(props.value - PADDING_STEP))}
+        >
+          <Minus className="size-3.5" />
+        </button>
+        <input
+          id={props.id}
+          type="text"
+          inputMode="numeric"
+          aria-label={`${label} padding in pixels`}
+          className="h-7 w-9 border-x bg-transparent text-center text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-neutral-400"
+          value={draft}
+          onChange={(e) => {
+            const raw = e.target.value.replace(/[^0-9]/g, "").slice(0, 3);
+            setDraft(raw);
+            if (raw !== "") props.onSet(clampPadding(Number(raw)));
+          }}
+          onBlur={() => setDraft(String(props.value))}
+        />
+        <button
+          type="button"
+          aria-label={`Increase ${props.side} padding by ${PADDING_STEP}`}
+          className="flex size-7 items-center justify-center text-neutral-600 hover:bg-neutral-100 disabled:opacity-30"
+          disabled={props.value >= PADDING_MAX}
+          onClick={() => props.onSet(clampPadding(props.value + PADDING_STEP))}
+        >
+          <Plus className="size-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function PaddingField(props: { id: string; label: string; value: Padding; onChange: (v: Padding) => void }) {
   const allEqual = props.value.top === props.value.right && props.value.right === props.value.bottom && props.value.bottom === props.value.left;
   const [linked, setLinked] = useState(allEqual);
-  const sides: (keyof Padding)[] = ["top", "right", "bottom", "left"];
-  const set = (side: keyof Padding, raw: string) => {
-    const n = Number(raw);
-    if (!Number.isFinite(n) || raw === "") return;
-    const v = Math.max(0, Math.min(120, Math.round(n)));
-    props.onChange(linked ? { top: v, right: v, bottom: v, left: v } : { ...props.value, [side]: v });
-  };
+  const set = (side: keyof Padding, v: number) => props.onChange(linked ? { top: v, right: v, bottom: v, left: v } : { ...props.value, [side]: v });
+  const side = (s: keyof Padding) => <PaddingSide id={`${props.id}-${s}`} side={s} value={props.value[s]} onSet={(v) => set(s, v)} />;
   return (
-    <FieldShell label={props.label}>
-      <div className="flex items-end gap-1.5">
-        {sides.map((s) => (
-          <label key={s} className="flex-1 text-center text-[10px] uppercase text-neutral-500">
-            {s}
-            <Input id={`${props.id}-${s}`} type="number" min={0} max={120} className="mt-0.5 h-8 px-1.5 text-center" value={props.value[s]} onChange={(e) => set(s, e.target.value)} />
-          </label>
-        ))}
+    <FieldShell label={props.label} help={`± buttons step by ${PADDING_STEP}px. Type in the box for an exact value (${PADDING_MIN}–${PADDING_MAX}).`}>
+      <div className="grid grid-cols-3 items-center justify-items-center gap-y-1.5 rounded-md bg-neutral-50 py-2">
+        <div />
+        {side("top")}
+        <div />
+        {side("left")}
         <Button
           type="button"
           size="icon-sm"
           variant={linked ? "secondary" : "ghost"}
           aria-pressed={linked}
           aria-label={linked ? "Unlink sides" : "Link all sides"}
-          title={linked ? "Sides linked: editing one sets all" : "Link all sides"}
+          title={linked ? "Sides linked: changing one sets all four" : "Link all sides"}
           onClick={() => setLinked((l) => !l)}
         >
           {linked ? <Link2 /> : <Link2Off />}
         </Button>
+        {side("right")}
+        <div />
+        {side("bottom")}
+        <div />
       </div>
     </FieldShell>
   );

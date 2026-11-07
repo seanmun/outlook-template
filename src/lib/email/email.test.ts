@@ -254,3 +254,14 @@ describe("pasted rich text", () => {
     expect(html).toContain("cell");
   });
 });
+
+describe("list spacing", () => {
+  it("renders lists with zero top/bottom margin and padding", async () => {
+    const { liteToRichText, renderRichText } = await import("./richtext");
+    const html = renderRichText(liteToRichText("Intro paragraph\n\n- One\n- Two\n\nAfter list"), {
+      fontFamily: "Arial", fontSize: 14, lineHeight: 20, color: "#000000", linkColor: "#0000ff", paragraphGap: 14, align: "left",
+    });
+    const ul = /<ul style="([^"]+)"/.exec(html)![1];
+    for (const prop of ["margin-top:0", "margin-bottom:0", "padding-top:0", "padding-bottom:0", "margin-left:24px"]) expect(ul).toContain(prop);
+  });
+});
