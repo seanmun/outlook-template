@@ -1,68 +1,116 @@
-import Image from "next/image";
+"use client";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { FileText, Plus, Sparkles, Trash2 } from "lucide-react";
+import { AppHeader, DemoBanner } from "@/components/app-header";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useConfig } from "@/lib/client/config";
+import { storesFor, type DraftSummary } from "@/lib/client/stores";
+import { BRANDS, getBrand } from "@/lib/email/brands";
+import { newEmailDocument, sampleEmailDocument } from "@/lib/email/starter";
 
-export default function Home() {
+export default function Dashboard() {
+  const config = useConfig();
+  const { drafts } = useMemo(() => storesFor(config.mode), [config.mode]);
+  const router = useRouter();
+  const [brandId, setBrandId] = useState(BRANDS[0].id);
+  const [list, setList] = useState<DraftSummary[] | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    drafts.list().then(setList).catch((e: Error) => {
+      toast.error(e.message);
+      setList([]);
+    });
+  }, [drafts]);
+
+  async function create(kind: "blank" | "sample" | "ai") {
+    setBusy(true);
+    try {
+      const doc =
+        kind === "sample" ? sampleEmailDocument(brandId) : kind === "ai" ? { ...newEmailDocument(brandId), modules: [] } : newEmailDocument(brandId);
+      const d = await drafts.create(doc);
+      router.push(`/editor/${d.id}${kind === "ai" ? "?panel=ai" : ""}`);
+    } catch (e) {
+      toast.error((e as Error).message);
+      setBusy(false);
+    }
+  }
+
+  async function remove(id: string) {
+    if (!confirm("Delete this draft? This cannot be undone.")) return;
+    try {
+      await drafts.remove(id);
+      setList((l) => l?.filter((x) => x.id !== id) ?? null);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+    <div className="flex min-h-screen flex-col">
+      <DemoBanner />
+      <AppHeader />
+      <main className="mx-auto w-full max-w-4xl flex-1 space-y-8 p-6">
+        <section className="rounded-lg border bg-white p-5">
+          <h1 className="text-lg font-semibold">New email</h1>
+          <p className="mt-1 text-sm text-neutral-500">Pick a brand. Each brand has a fixed set of approved modules.</p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            {BRANDS.map((b) => (
+              <button
+                key={b.id}
+                onClick={() => setBrandId(b.id)}
+                className={`rounded-md border p-3 text-left text-sm transition ${brandId === b.id ? "border-neutral-900 ring-1 ring-neutral-900" : "hover:border-neutral-400"}`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="h-3 w-3 rounded-full" style={{ background: b.colors.primary }} />
+                  <span className="font-medium">{b.name}</span>
+                </div>
+                <div className="mt-1 text-xs text-neutral-500">{b.description}</div>
+                {b.isSample && <Badge variant="outline" className="mt-2">Fictional sample</Badge>}
+              </button>
+            ))}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button disabled={busy || !config.ai.enabled} onClick={() => create("ai")} title={config.ai.enabled ? undefined : config.ai.reason}>
+              <Sparkles /> Describe it to AI
+            </Button>
+            <Button variant="outline" disabled={busy} onClick={() => create("blank")}>
+              <Plus /> Blank (header, text, footer)
+            </Button>
+            <Button variant="outline" disabled={busy} onClick={() => create("sample")}>
+              <FileText /> Sample content
+            </Button>
+          </div>
+          {!config.ai.enabled && <p className="mt-2 text-xs text-neutral-500">{config.ai.reason}</p>}
+        </section>
+
+        <section>
+          <h2 className="mb-2 text-sm font-semibold text-neutral-700">Drafts</h2>
+          {list === null ? (
+            <p className="text-sm text-neutral-500">Loading…</p>
+          ) : list.length === 0 ? (
+            <p className="text-sm text-neutral-500">No drafts yet.</p>
+          ) : (
+            <ul className="divide-y rounded-lg border bg-white">
+              {list.map((d) => (
+                <li key={d.id} className="flex items-center gap-3 px-4 py-3">
+                  <button className="min-w-0 flex-1 text-left" onClick={() => router.push(`/editor/${d.id}`)}>
+                    <div className="truncate text-sm font-medium">{d.title || "Untitled email"}</div>
+                    <div className="truncate text-xs text-neutral-500">
+                      {getBrand(d.brandId)?.name ?? d.brandId} · {d.subject || "No subject"} · {new Date(d.updatedAt).toLocaleString()}
+                    </div>
+                  </button>
+                  <Button variant="ghost" size="icon" aria-label="Delete draft" onClick={() => remove(d.id)}>
+                    <Trash2 />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </main>
     </div>
   );
