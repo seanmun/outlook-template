@@ -28,6 +28,8 @@ export interface ModuleDefinition<C = Record<string, unknown>, S = Record<string
   settingFields: SettingFieldSpec[];
   /** Extra guidance for the AI about how to use this module. */
   aiGuidance?: string;
+  /** Images the module renders that are not image fields (e.g. built-in icons), so exports can embed them. */
+  images?: (content: C, settings: S) => ImageSource[];
   /** Default renderer, shared by brands with identical structure. */
   render: ModuleRenderer<C, S>;
   /** Brand-specific renderers for layouts that differ. */

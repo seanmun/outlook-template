@@ -110,7 +110,9 @@ export function AiPanel() {
       // Placed images are used up; the comp stays so follow-up requests can still refer to it.
       setImages((list) => list.filter((x) => !sentImages.includes(x)));
       if (resolution.kind === "apply") {
-        const doc = body.document;
+        // A draft still called "Untitled email" takes its name from the subject the AI set.
+        const untitled = !body.document.title.trim() || body.document.title === "Untitled email";
+        const doc = untitled && body.document.subject.trim() ? { ...body.document, title: body.document.subject.trim().slice(0, 200) } : body.document;
         change(() => doc);
         setChat((c) => [...c, { role: "assistant", text: summary, unresolved: body.unresolved }]);
         if (body.operations.length) toast.success("AI changes applied. Use Undo to revert.");

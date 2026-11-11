@@ -4,7 +4,7 @@ import { escapeHtml, sanitizeUrl } from "./html";
 import { findContentIssues } from "./issues";
 import { applyOperations, type Operation } from "./operations";
 import { MODULES, validateDocument } from "./registry";
-import { renderEmailHtml } from "./render";
+import { collectImageSources, renderEmailHtml } from "./render";
 import { liteToRichText, RichTextSchema } from "./richtext";
 import { newEmailDocument, sampleEmailDocument } from "./starter";
 import { sampleDataUrl } from "./samples";
@@ -152,6 +152,38 @@ describe("module registry and rendering", () => {
     expect(msgs).toMatch(/Headline & body: Body contains a placeholder/);
     expect(msgs).toMatch(/CTA button: Button link is missing/);
     expect(msgs).toMatch(/Footer: Footer text contains a placeholder/);
+  });
+});
+
+describe("divider and social icons", () => {
+  const build = () => {
+    const base = { ...newEmailDocument("harbor-pine"), modules: [] };
+    const ops: Operation[] = [
+      { op: "add_module", moduleType: "divider", index: null, ref: null, content: null, settings: { thickness: 2 } },
+      { op: "add_module", moduleType: "social", index: null, ref: null, content: { networks: "twitter, facebook, myspace, facebook", facebookUrl: "https://facebook.com/example" }, settings: null },
+    ];
+    const r = applyOperations(base, ops, ids);
+    if (!r.ok) throw new Error(JSON.stringify(r.errors));
+    return r.doc;
+  };
+
+  it("renders a table-cell rule and linked icons in the order given", () => {
+    const html = renderEmailHtml(build(), { resolveImage: resolve });
+    expect(html).not.toMatch(/<hr/i);
+    expect(html).toMatch(/height="2" bgcolor="#d9dde2"/);
+    const alts = [...html.matchAll(/alt="(X|Facebook|Instagram)"/g)].map((m) => m[1]);
+    expect(alts).toEqual(["X", "Facebook"]);
+    expect(html).toContain('href="https://facebook.com/example"');
+  });
+
+  it("lists its icons for export and flags icons without links", () => {
+    const doc = build();
+    expect(collectImageSources(doc)).toEqual([
+      { kind: "sample", sampleId: "social-x-dark" },
+      { kind: "sample", sampleId: "social-facebook-dark" },
+    ]);
+    expect(sampleDataUrl("social-x-dark")).toMatch(/^data:image\/png;base64,/);
+    expect(findContentIssues(doc).map((i) => i.message).join(" ")).toMatch(/no link set for x\./);
   });
 });
 

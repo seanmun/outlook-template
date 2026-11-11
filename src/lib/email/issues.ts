@@ -4,6 +4,7 @@
  */
 import type { EmailDocument } from "./document";
 import type { ImageValue } from "./fields";
+import { selectedNetworks } from "./modules/social";
 import { getModule } from "./registry";
 import { richTextAllText, type RichText } from "./richtext";
 
@@ -44,6 +45,10 @@ export function findContentIssues(doc: EmailDocument): ContentIssue[] {
         if (!img.src && !optional) issues.push({ moduleId: m.id, field: f.key, severity: "warning", message: `${label} has not been uploaded.` });
         if (img.src && !img.alt.trim()) issues.push({ moduleId: m.id, field: f.key, severity: "warning", message: `${label} has no alt text.` });
       }
+    }
+    if (m.type === "social") {
+      const missing = selectedNetworks(String(content.networks ?? "")).filter((id) => !content[`${id}Url`]);
+      if (missing.length) issues.push({ moduleId: m.id, field: "networks", severity: "warning", message: `${def.name}: no link set for ${missing.join(", ")}.` });
     }
   }
   return issues;

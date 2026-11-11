@@ -9,13 +9,15 @@ import { z } from "zod";
 import { getBrand, type Brand } from "./brands";
 import { EmailDocumentSchema, type EmailDocument, type ModuleInstance } from "./document";
 import { ctaModule } from "./modules/cta";
+import { dividerModule } from "./modules/divider";
 import { footerModule } from "./modules/footer";
 import { headerModule } from "./modules/header";
 import { heroModule } from "./modules/hero";
+import { socialModule } from "./modules/social";
 import { textModule } from "./modules/text";
 import type { AnyModuleDefinition } from "./modules/types";
 
-export const MODULES: AnyModuleDefinition[] = [headerModule, heroModule, textModule, ctaModule, footerModule];
+export const MODULES: AnyModuleDefinition[] = [headerModule, heroModule, textModule, ctaModule, dividerModule, socialModule, footerModule];
 
 export function getModule(type: string): AnyModuleDefinition | undefined {
   return MODULES.find((m) => m.type === type);

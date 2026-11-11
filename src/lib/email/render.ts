@@ -111,7 +111,10 @@ export function collectImageSources(doc: EmailDocument): ImageSource[] {
     }
     for (const child of Object.values(o)) if (child && typeof child === "object") visit(child);
   };
-  for (const m of doc.modules) visit(m.content);
+  for (const m of doc.modules) {
+    visit(m.content);
+    out.push(...(getModule(m.type)?.images?.(m.content, m.settings) ?? []));
+  }
   return out;
 }
 

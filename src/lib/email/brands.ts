@@ -39,7 +39,7 @@ export interface Brand {
   voice: string;
 }
 
-const STANDARD_MODULES = ["header", "hero", "text", "cta", "footer"];
+const STANDARD_MODULES = ["header", "hero", "text", "cta", "divider", "social", "footer"];
 
 export const BRANDS: Brand[] = [
   {

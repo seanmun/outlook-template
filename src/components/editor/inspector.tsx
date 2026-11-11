@@ -10,7 +10,7 @@ import { getModule } from "@/lib/email/registry";
 import type { RichText } from "@/lib/email/richtext";
 import { CONTENT_WIDTH } from "@/lib/email/render";
 import { useEditor } from "./context";
-import { AlignField, ColorField, ImageField, NumberField, PaddingField, TextField, UrlField } from "./fields";
+import { AlignField, ColorField, FieldShell, ImageField, NumberField, PaddingField, TextField, UrlField } from "./fields";
 import { RichTextField } from "./rich-text-field";
 
 function EmailOverview() {
@@ -77,6 +77,7 @@ export function Inspector() {
 
       <section className="space-y-3">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Content</h3>
+        {def.contentFields.length === 0 && <p className="text-xs text-neutral-500">Nothing to fill in. Adjust the look under Settings.</p>}
         {def.contentFields.map((f) => {
           const id = `${m.id}-${f.key}`;
           switch (f.kind) {
@@ -129,7 +130,22 @@ export function Inspector() {
             case "number":
               return <NumberField key={f.key} id={id} label={f.label} min={f.min} max={f.max} step={f.step} unit={f.unit} help={f.help} value={Number(settings[f.key])} onChange={(v) => setS(f.key, v, true)} />;
             case "select":
-              return null;
+              return (
+                <FieldShell key={f.key} label={f.label} htmlFor={id}>
+                  <select
+                    id={id}
+                    className="h-8 w-full rounded-md border bg-white px-2 text-sm"
+                    value={String(settings[f.key])}
+                    onChange={(e) => setS(f.key, f.options.find((o) => String(o.value) === e.target.value)?.value)}
+                  >
+                    {f.options.map((o) => (
+                      <option key={String(o.value)} value={String(o.value)}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </FieldShell>
+              );
           }
         })}
       </section>

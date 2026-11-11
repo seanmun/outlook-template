@@ -105,6 +105,7 @@ export function AiAttachments(props: {
           if (up.src.kind !== "asset") continue;
           const added: EmailImageAttachment = { assetId: up.src.assetId, name: file.name, width: up.width, height: up.height, thumbUrl: props.assets.previewUrl(up.src) };
           props.onImages((list) => [...list, added]);
+          if (up.width < 600) toast.message(`${file.name} is only ${up.width}px wide. It will look soft at full email width (600px); 1200px is ideal.`);
         } catch (e) {
           toast.error(`${file.name}: ${(e as Error).message}`);
         }
