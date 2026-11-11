@@ -21,6 +21,12 @@ import { Inspector } from "./inspector";
 const AUTOSAVE_MS = 1200;
 
 export function Editor({ id }: { id: string }) {
+  const { ready } = useConfig();
+  if (!ready) return <div className="p-10 text-sm text-neutral-500">Loading…</div>;
+  return <EditorForVisitor id={id} />;
+}
+
+function EditorForVisitor({ id }: { id: string }) {
   const config = useConfig();
   const stores = useMemo(() => storesFor(config.mode), [config.mode]);
   const [loadError, setLoadError] = useState<string | null>(null);

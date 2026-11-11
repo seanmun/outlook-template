@@ -12,7 +12,21 @@ import { storesFor, type DraftSummary } from "@/lib/client/stores";
 import { BRANDS, getBrand } from "@/lib/email/brands";
 import { newEmailDocument, sampleEmailDocument } from "@/lib/email/starter";
 
-export default function Dashboard() {
+export default function Home() {
+  const { ready } = useConfig();
+  return (
+    <div className="flex min-h-screen flex-col">
+      <DemoBanner />
+      <AppHeader />
+      <main className="mx-auto w-full max-w-4xl flex-1 space-y-8 p-6">
+        <MarketingHero />
+        {ready ? <Workspace /> : null}
+      </main>
+    </div>
+  );
+}
+
+function Workspace() {
   const config = useConfig();
   const { drafts } = useMemo(() => storesFor(config.mode), [config.mode]);
   const router = useRouter();
@@ -51,11 +65,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <DemoBanner />
-      <AppHeader />
-      <main className="mx-auto w-full max-w-4xl flex-1 space-y-8 p-6">
-        <MarketingHero />
+    <>
         <section id="new-email" className="scroll-mt-6 rounded-lg border bg-white p-5">
           <h2 className="text-lg font-semibold">New email</h2>
           <p className="mt-1 text-sm text-neutral-500">Pick a brand. Each brand has a fixed set of approved modules.</p>
@@ -113,7 +123,6 @@ export default function Dashboard() {
             </ul>
           )}
         </section>
-      </main>
-    </div>
+    </>
   );
 }

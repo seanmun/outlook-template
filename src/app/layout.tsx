@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { Bungee, Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import { auth } from "@clerk/nextjs/server";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ConfigProvider, type ClientConfig } from "@/lib/client/config";
+import { ConfigProvider, type ServerConfig } from "@/lib/client/config";
 import { publicConfig } from "@/lib/server/config";
 import { exporterStatuses } from "@/lib/export/exporters";
 import "./globals.css";
@@ -20,17 +21,23 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
-  const config: ClientConfig = { ...publicConfig(), exporters: exporterStatuses() };
-  const body = (
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const config: ServerConfig = { ...publicConfig(), exporters: exporterStatuses() };
+  const production = config.mode === "production";
+  const signedIn = production ? !!(await auth()).userId : false;
+  const app = (
+    <>
+      <ConfigProvider value={config} signedIn={signedIn}>
+        <TooltipProvider>{children}</TooltipProvider>
+      </ConfigProvider>
+      <Toaster position="bottom-right" />
+    </>
+  );
+  return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${bungee.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-neutral-50 text-neutral-900">
-        <ConfigProvider value={config}>
-          <TooltipProvider>{children}</TooltipProvider>
-        </ConfigProvider>
-        <Toaster position="bottom-right" />
+        {production ? <ClerkProvider>{app}</ClerkProvider> : app}
       </body>
     </html>
   );
-  return config.mode === "production" ? <ClerkProvider>{body}</ClerkProvider> : body;
 }

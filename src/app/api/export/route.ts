@@ -8,5 +8,6 @@ export async function POST(req: Request) {
   const body = await readJson(req);
   if (appMode() === "demo") return exportForDemo(body);
   const ctx = await productionContext();
-  return ctx instanceof Response ? ctx : exportForUser(ctx, body);
+  if (ctx instanceof Response) return ctx;
+  return ctx.userId ? exportForUser(ctx, body) : exportForDemo(body);
 }
