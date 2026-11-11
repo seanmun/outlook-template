@@ -42,7 +42,7 @@ export const ctaModule = defineModule<C, S>({
     },
   }),
   contentFields: [
-    { key: "label", label: "Button label", kind: "text", maxLength: 80 },
+    { key: "label", label: "Button label", kind: "text", maxLength: 80, sizeSetting: "fontSize", colorSetting: "buttonTextColor" },
     { key: "url", label: "Button link", kind: "url", help: "Absolute https:// or mailto: link." },
   ],
   settingFields: [
@@ -67,7 +67,7 @@ export const ctaModule = defineModule<C, S>({
       padding: `${s.buttonPaddingY}px ${s.buttonPaddingX}px`,
       "background-color": bg,
       "border-radius": radius ? `${radius}px` : null,
-    })}"><a href="${escapeAttr(href)}" target="_blank" style="${style({
+    })}"><a${ctx.fieldAttrs("label")} href="${escapeAttr(href)}" target="_blank" style="${style({
       "font-family": brand.fontFamily,
       "font-size": s.fontSize,
       "line-height": Math.round(s.fontSize * 1.3),

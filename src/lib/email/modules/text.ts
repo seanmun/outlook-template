@@ -50,8 +50,8 @@ export const textModule = defineModule<C, S>({
     },
   }),
   contentFields: [
-    { key: "headline", label: "Headline", kind: "text", maxLength: 200, help: "Leave empty to hide the headline." },
-    { key: "body", label: "Body", kind: "richtext" },
+    { key: "headline", label: "Headline", kind: "text", maxLength: 200, help: "Leave empty to hide the headline.", sizeSetting: "headlineSize", colorSetting: "headlineColor" },
+    { key: "body", label: "Body", kind: "richtext", sizeSetting: "bodySize", colorSetting: "textColor" },
   ],
   settingFields: [
     { key: "align", label: "Alignment", kind: "align" },
@@ -70,7 +70,7 @@ export const textModule = defineModule<C, S>({
     const { settings: s, content, brand } = ctx;
     const hasBody = content.body.content.length > 0;
     const headline = content.headline.trim()
-      ? `<h1 style="${style({
+      ? `<h1${ctx.fieldAttrs("headline")} style="${style({
           margin: `0 0 ${hasBody ? s.headlineGap : 0}px 0`,
           padding: "0",
           "font-family": brand.headingFontFamily,
@@ -83,7 +83,7 @@ export const textModule = defineModule<C, S>({
         })}">${escapeHtml(content.headline)}</h1>`
       : "";
     const body = hasBody
-      ? renderRichText(content.body, {
+      ? ctx.editable("body", renderRichText(content.body, {
           fontFamily: brand.fontFamily,
           fontSize: s.bodySize,
           lineHeight: Math.round(s.bodySize * 1.55),
@@ -91,7 +91,7 @@ export const textModule = defineModule<C, S>({
           linkColor: safeColor(s.linkColor),
           paragraphGap: s.paragraphGap,
           align: s.align,
-        })
+        }))
       : "";
     return moduleRow({
       rowAttrs: ctx.rowAttrs,

@@ -13,6 +13,10 @@ export interface RenderContext<C, S> {
   contentWidth: number;
   /** For a columns row: the rendered rows of one column's blocks at the given width. Empty string otherwise. */
   renderColumn: (column: number, width: number) => string;
+  /** Attributes marking the element that shows a plain-text field, so the preview can edit it in place (empty on export). */
+  fieldAttrs: (key: string) => string;
+  /** Wraps rendered rich text so the preview can edit it in place. Returns the html unchanged on export. */
+  editable: (key: string, html: string) => string;
   /** Attributes for a column cell (preview annotations; empty on export). */
   columnAttrs: (column: number) => string;
 }

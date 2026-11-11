@@ -42,7 +42,7 @@ export const footerModule = defineModule<C, S>({
       padding: { top: 24, right: 40, bottom: 24, left: 40 },
     },
   }),
-  contentFields: [{ key: "body", label: "Footer text", kind: "richtext" }],
+  contentFields: [{ key: "body", label: "Footer text", kind: "richtext", sizeSetting: "fontSize", colorSetting: "textColor" }],
   settingFields: [
     { key: "align", label: "Alignment", kind: "align" },
     { key: "backgroundColor", label: "Background", kind: "color" },
@@ -62,7 +62,7 @@ export const footerModule = defineModule<C, S>({
       align: s.align,
       inner:
         content.body.content.length > 0
-          ? renderRichText(content.body, {
+          ? ctx.editable("body", renderRichText(content.body, {
               fontFamily: brand.fontFamily,
               fontSize: s.fontSize,
               lineHeight: Math.round(s.fontSize * 1.5),
@@ -70,7 +70,7 @@ export const footerModule = defineModule<C, S>({
               linkColor: safeColor(s.linkColor),
               paragraphGap: s.paragraphGap,
               align: s.align,
-            })
+            }))
           : "&nbsp;",
     });
   },

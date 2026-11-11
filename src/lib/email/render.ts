@@ -20,10 +20,26 @@ export interface RenderOptions {
   resolveImage: (src: ImageSource) => string | null;
   /** Adds data-module-id attributes so the preview can map clicks to modules. Never set for export. */
   annotate?: boolean;
-  selectedModuleId?: string | null;
   /** Preview only: these modules play a "drop into place" animation on this render, one after another. */
   animateModuleIds?: string[];
 }
+
+/**
+ * Hover and selection marks for the canvas. Preview only; never exported.
+ * Selected: four corner brackets snap inward and lock onto the module, like a target reticle,
+ * over a faint frame that breathes. Hover: quieter brackets on the innermost module under the pointer.
+ */
+const corners = (color: string, len: number, w: number) =>
+  ["top left", "top right", "bottom left", "bottom right"].flatMap((pos) => [`linear-gradient(${color},${color}) ${pos}/${len}px ${w}px no-repeat`, `linear-gradient(${color},${color}) ${pos}/${w}px ${len}px no-repeat`]).join(",");
+const SELECTION_STYLE = [
+  "[data-module-id]>td{position:relative}",
+  `[data-module-id]>td::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:2;opacity:0}`,
+  `[data-module-id]:hover:not(:has([data-module-id]:hover)):not([data-selected])>td::after{opacity:1;background:${corners("#7dd3fc", 12, 2)};box-shadow:inset 0 0 0 1px rgba(125,211,252,.35)}`,
+  `[data-module-id][data-selected]>td::after{opacity:1;background:${corners("#2563eb", 20, 3)};animation:otb-lock .32s cubic-bezier(.2,1.5,.4,1) both,otb-breathe 2.6s ease-in-out .32s infinite}`,
+  "@keyframes otb-lock{0%{inset:-14px;opacity:0;filter:brightness(2.2) saturate(1.4)}60%{opacity:1}100%{inset:0;opacity:1;filter:none}}",
+  "@keyframes otb-breathe{0%,100%{box-shadow:inset 0 0 0 1px rgba(37,99,235,.35),0 0 0 0 rgba(37,99,235,0)}50%{box-shadow:inset 0 0 0 1px rgba(37,99,235,.6),0 0 16px 1px rgba(56,189,248,.45)}}",
+  "@media (prefers-reduced-motion:reduce){[data-module-id]>td::after{animation:none!important}}",
+].join("");
 
 /** A short overshoot-and-settle, with a highlight flash that fades. Preview only; never exported. */
 const DROP_KEYFRAMES =
@@ -44,6 +60,8 @@ function renderModules(modules: ModuleInstance[], brand: Brand, opts: RenderOpti
         contentWidth,
         renderColumn: (column, width) => renderModules(m.columns?.[column]?.blocks ?? [], brand, opts, width),
         columnAttrs: (column) => (opts.annotate ? ` data-column="${column}"` : ""),
+        fieldAttrs: (key) => (opts.annotate ? ` data-field="${escapeAttr(key)}" data-field-kind="text"` : ""),
+        editable: (key, html) => (opts.annotate ? `<div data-field="${escapeAttr(key)}" data-field-kind="richtext">${html}</div>` : html),
       });
     })
     .join("\n");
@@ -61,9 +79,7 @@ export function renderEmailHtml(doc: EmailDocument, opts: RenderOptions): string
     opts.annotate
       ? `<style>${DROP_KEYFRAMES}${(opts.animateModuleIds ?? [])
           .map((id, i) => `[data-module-id="${escapeAttr(id)}"]>td{animation:otb-drop .42s cubic-bezier(.2,1.4,.4,1) ${Math.min(i, 12) * 70}ms both;position:relative}`)
-          .join("")}body{-webkit-user-select:none;user-select:none}[data-module-id]{cursor:grab}[data-module-id]:hover{outline:2px dashed #93c5fd;outline-offset:-2px}${
-          opts.selectedModuleId ? `[data-module-id="${escapeAttr(opts.selectedModuleId)}"]{outline:2px solid #2563eb;outline-offset:-2px}` : ""
-        }</style>`
+          .join("")}body{-webkit-user-select:none;user-select:none}[data-module-id]{cursor:grab}${SELECTION_STYLE}[data-field]{-webkit-user-select:text;user-select:text;cursor:text;outline:none;min-width:8px}[data-field]:focus{box-shadow:0 0 0 1px rgba(37,99,235,.55),0 0 0 4px rgba(37,99,235,.14);border-radius:2px}</style>`
       : "";
 
   return `<!DOCTYPE html>

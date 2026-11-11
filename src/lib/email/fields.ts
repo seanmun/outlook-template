@@ -48,9 +48,15 @@ export function imageDisplayHeight(img: ImageValue, width: number, fallbackRatio
 
 /* ---------- Inspector field specs (what the UI and the AI may edit) ---------- */
 
+/** Which of the module's settings hold this text's size and colour, so on-canvas text tools can change them. */
+export interface TextStyleSettings {
+  sizeSetting?: string;
+  colorSetting?: string;
+}
+
 export type ContentFieldSpec =
-  | { key: string; label: string; kind: "text"; maxLength: number; multiline?: boolean; help?: string }
-  | { key: string; label: string; kind: "richtext"; help?: string }
+  | ({ key: string; label: string; kind: "text"; maxLength: number; multiline?: boolean; help?: string } & TextStyleSettings)
+  | ({ key: string; label: string; kind: "richtext"; help?: string } & TextStyleSettings)
   | { key: string; label: string; kind: "url"; help?: string }
   | { key: string; label: string; kind: "image"; maxWidth: number; allowLink?: boolean; help?: string };
 

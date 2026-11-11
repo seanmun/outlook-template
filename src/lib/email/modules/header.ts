@@ -34,7 +34,7 @@ function logoOrWordmark(ctx: RenderContext<C, S>, available: number): string {
       }),
     );
   }
-  return `<div style="${style({
+  return `<div${ctx.fieldAttrs("wordmark")} style="${style({
     margin: "0",
     "font-family": brand.headingFontFamily,
     "font-size": settings.wordmarkSize,
@@ -96,7 +96,7 @@ export const headerModule = defineModule<C, S>({
   }),
   contentFields: [
     { key: "logo", label: "Logo image", kind: "image", maxWidth: 300, help: "Leave empty to use the text wordmark." },
-    { key: "wordmark", label: "Wordmark text", kind: "text", maxLength: 80 },
+    { key: "wordmark", label: "Wordmark text", kind: "text", maxLength: 80, sizeSetting: "wordmarkSize", colorSetting: "textColor" },
     { key: "linkUrl", label: "Logo link", kind: "url" },
   ],
   settingFields: [
