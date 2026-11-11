@@ -48,6 +48,9 @@ export class MemoryAssetRepo implements AssetRepo {
     const r = this.rows.get(id);
     return r && r.record.ownerId === ownerId ? r : null;
   }
+  async list(ownerId: string) {
+    return [...this.rows.values()].map((r) => r.record).filter((r) => r.ownerId === ownerId).reverse();
+  }
   async existing(ownerId: string, ids: string[]) {
     return new Set(ids.filter((id) => this.rows.get(id)?.record.ownerId === ownerId));
   }

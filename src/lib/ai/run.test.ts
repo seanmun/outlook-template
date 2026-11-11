@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { parseReference, sniffReferenceType } from "./reference";
 import { newEmailDocument, sampleEmailDocument } from "@/lib/email/starter";
 import { runAssembly, type ModelCaller } from "./run";
 import type { AiOutput } from "./schema";
@@ -95,6 +96,34 @@ describe("AI assembly", () => {
     const call = scripted([{ summary: "", unresolved: [], operations: [bad] }]);
     const r = await runAssembly({ doc, instruction: "x", history: [], call });
     expect(r.ok).toBe(false);
+  });
+
+  it("places an uploaded image and shows it to the model", async () => {
+    const doc = { ...sampleEmailDocument("harbor-pine"), modules: [] };
+    const call = scripted([{ summary: "Added the hero.", unresolved: [], operations: [op({ op: "add_module", moduleType: "hero", contentJson: '{"image":{"use":"img-1","alt":"Team"}}' })] }]);
+    const images = [{ ref: "img-1", src: { kind: "asset" as const, assetId: "a1" }, width: 1200, height: 400, name: "team.png", mediaType: "image/png" as const, data: "AAAA" }];
+    const r = await runAssembly({ doc, instruction: "x", history: [], call, images, reference: { mediaType: "application/pdf", data: "JVBERi0=" } });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.document.modules[0].content.image).toMatchObject({ src: { kind: "asset", assetId: "a1" }, naturalWidth: 1200, naturalHeight: 400, width: 600, alt: "Team" });
+    const sent = JSON.stringify(call.lastMessages);
+    expect(sent).toContain('"type":"document"');
+    expect(sent).toContain('Uploaded image \\"img-1\\"');
+    expect(sent).toContain("A design comp is attached");
+  });
+
+  it("rejects an image ref that was not uploaded", async () => {
+    const doc = { ...sampleEmailDocument("harbor-pine"), modules: [] };
+    const call = scripted([{ summary: "", unresolved: [], operations: [op({ op: "add_module", moduleType: "hero", contentJson: '{"image":{"use":"img-9"}}' })] }]);
+    const images = [{ ref: "img-1", src: { kind: "asset" as const, assetId: "a1" }, width: 10, height: 10, name: "x.png" }];
+    expect((await runAssembly({ doc, instruction: "x", history: [], call, images })).ok).toBe(false);
+  });
+
+  it("identifies comp files by their bytes", () => {
+    expect(sniffReferenceType(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]))).toBe("application/pdf");
+    expect(sniffReferenceType(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))).toBe("image/png");
+    expect(sniffReferenceType(new TextEncoder().encode("<html>"))).toBeNull();
+    expect(parseReference(Buffer.from("not a file").toString("base64")).ok).toBe(false);
   });
 
   it("surfaces refusals and caller errors", async () => {

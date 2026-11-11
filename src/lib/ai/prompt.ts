@@ -74,7 +74,7 @@ Brand
 - Voice: ${brand.voice}
 - Palette: ${brand.palette.map((p) => `${p.label} ${p.value}`).join(", ")}
 - Headline sizes in use: ${brand.headlineSizes.join(", ")} px
-${brand.isSample ? "- This is a FICTIONAL sample brand. Do not reference real companies.\n" : ""}
+${brand.isSample ? "- This is a fictional sample brand. Do not introduce real company names yourself; keep any names the user gives you, in the request or in an attached comp, exactly as written.\n" : ""}
 Module catalogue (the only modules you may use):
 ${JSON.stringify(moduleCatalog(brand), null, 1)}
 
@@ -92,22 +92,38 @@ Rules
 - Make the smallest set of operations that satisfies the request. Never rewrite modules or fields the user did not ask about; untouched content must stay exactly as it is.
 - Refer to existing modules by their id. Never change ids.
 - Do not invent facts, dates, names, figures, approved claims, or final URLs. Use [[PLACEHOLDER: what is needed]] in text for anything the user has not given you, and leave URL fields as "".
-- You cannot add or choose images. New image fields stay empty for the user to upload. You may set alt text that describes the intended image.
+- You cannot invent or fetch images. If the request lists uploaded images, you may place one by setting an image field to {"use": "<its ref>"} (optionally with alt and width); otherwise image fields stay empty for the user to upload. Always set alt text that describes the image.
 - Colours must be #rrggbb, preferably from the brand palette.
 - "Reduce padding" etc. means adjusting the module's padding or spacing settings by a sensible amount (e.g. 25-50%), not removing it, unless asked.
 - If the request cannot be done with the available modules and settings, return no operations and explain in summary.
 - summary: one or two sentences, past tense, describing what changed. unresolved: list placeholders or decisions the user still needs to make.`;
 }
 
+const COMP_NOTE = `
+
+A design comp is attached. Rebuild it as closely as this brand's modules and settings allow:
+- Match the order of sections, and copy every piece of visible text exactly as it appears: greetings, names, dates, link labels, footer lines. Do not paraphrase, add copy, or swap visible text for a [[PLACEHOLDER]]. The comp is the content, so nothing shown in it needs confirming.
+- Links: the comp shows labels but not addresses. Keep each label as plain text (or as the button label with url ""), and do not write a placeholder for it.
+- unresolved: at most three short items, only for things the user must supply that the comp cannot show: link addresses (one combined item) and images that were not uploaded (one combined item). Do not ask the user to confirm anything.
+- Map each section to the nearest catalogue module. Use the brand palette colour closest to the comp rather than the comp's exact colours.
+- You cannot extract images from the comp. Unless an uploaded image matches, leave the image field empty, set alt text describing the image shown, and list each needed image in unresolved.
+- Mention in summary anything in the comp that the available modules cannot reproduce.`;
+
+function imagesNote(images: { ref: string }[], hasComp: boolean): string {
+  return `\n\nUploaded images are attached (${images.map((i) => i.ref).join(", ")}). Look at each one and place it where it belongs${hasComp ? ", matching the comp" : ""} by setting an image field to {"use": "<ref>"}. Use an image at most once unless asked, skip any that do not fit, and mention skipped images in summary.`;
+}
+
 export function userMessage(opts: {
   doc: EmailDocument;
   instruction: string;
   history: { role: "user" | "assistant"; text: string }[];
+  reference?: unknown;
+  images?: { ref: string }[];
 }): string {
   const hist = opts.history.slice(-8).map((h) => `${h.role === "user" ? "User" : "Assistant"}: ${h.text}`).join("\n");
   return `${hist ? `Earlier in this session:\n${hist}\n\n` : ""}Current email (JSON):
 ${JSON.stringify(documentView(opts.doc), null, 1)}
 
 Request:
-${opts.instruction}`;
+${opts.instruction}${opts.reference ? COMP_NOTE : ""}${opts.images?.length ? imagesNote(opts.images, !!opts.reference) : ""}`;
 }

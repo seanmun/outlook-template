@@ -1,7 +1,7 @@
 /** Pure editor state: document, undo/redo history, selection, and an edit version counter. */
 import { requireBrand } from "@/lib/email/brands";
 import { newModuleId, type EmailDocument, type ModuleInstance } from "@/lib/email/document";
-import { applyOperations, type Operation } from "@/lib/email/operations";
+import { applyOperations, type Operation, type AvailableImage } from "@/lib/email/operations";
 import { createModuleInstance, getModule } from "@/lib/email/registry";
 
 const HISTORY_LIMIT = 100;
@@ -125,9 +125,11 @@ export function resolveAiResult(opts: {
   currentDoc: EmailDocument;
   resultDoc: EmailDocument;
   operations: Operation[];
+  /** Images the request offered to the AI, needed to replay operations that place them. */
+  images?: AvailableImage[];
 }): AiResolution {
   if (opts.requestVersion === opts.currentVersion) return { kind: "apply", doc: opts.resultDoc };
-  const re = applyOperations(opts.currentDoc, opts.operations);
+  const re = applyOperations(opts.currentDoc, opts.operations, undefined, opts.images);
   return re.ok
     ? { kind: "stale", rebased: re.doc, reason: "You edited the email while the AI was working." }
     : { kind: "stale", rebased: null, reason: `You edited the email while the AI was working, and its changes no longer apply cleanly (${re.errors[0]?.message ?? "conflict"}).` };

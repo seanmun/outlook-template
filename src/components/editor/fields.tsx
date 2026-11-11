@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { AlignCenter, AlignLeft, AlignRight, ImagePlus, Link2, Link2Off, Minus, Plus, Trash2 } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, ImagePlus, Images, Link2, Link2Off, Minus, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import type { Brand } from "@/lib/email/brands";
 import type { Align, ImageValue, Padding } from "@/lib/email/fields";
 import { isSafeUrl } from "@/lib/email/html";
-import type { AssetClient } from "@/lib/client/stores";
+import type { AssetClient, UploadedImage } from "@/lib/client/stores";
+import { ImageLibraryDialog } from "./image-library";
 
 export function FieldShell({ label, help, error, htmlFor, children }: { label: string; help?: string; error?: string | null; htmlFor?: string; children: React.ReactNode }) {
   return (
@@ -251,18 +252,22 @@ export function ImageField(props: {
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const v = props.value;
   const ratio = v.naturalWidth && v.naturalHeight ? v.naturalHeight / v.naturalWidth : null;
+
+  function applyImage(up: UploadedImage) {
+    const width = Math.min(props.maxWidth, up.width, v.src ? v.width : props.maxWidth);
+    props.onChange({ ...v, src: up.src, naturalWidth: up.width, naturalHeight: up.height, width: Math.max(16, width) });
+    props.onUploaded();
+    if (up.width < width * 2) toast.message("Tip: images at 2× display width look sharper on high-DPI screens.");
+  }
 
   async function onFile(file: File | undefined) {
     if (!file) return;
     setUploading(true);
     try {
-      const up = await props.assets.upload(file);
-      const width = Math.min(props.maxWidth, up.width, v.src ? v.width : props.maxWidth);
-      props.onChange({ ...v, src: up.src, naturalWidth: up.width, naturalHeight: up.height, width: Math.max(16, width) });
-      props.onUploaded();
-      if (up.width < width * 2) toast.message("Tip: images at 2× display width look sharper on high-DPI screens.");
+      applyImage(await props.assets.upload(file));
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -284,6 +289,10 @@ export function ImageField(props: {
             <Button type="button" size="sm" variant="outline" disabled={uploading} onClick={() => fileRef.current?.click()}>
               <ImagePlus /> {uploading ? "Uploading…" : v.src ? "Replace" : "Upload"}
             </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => setLibraryOpen(true)}>
+              <Images /> Library
+            </Button>
+            <ImageLibraryDialog open={libraryOpen} onOpenChange={setLibraryOpen} assets={props.assets} onPick={applyImage} />
             {v.src && (
               <Button type="button" size="sm" variant="ghost" onClick={() => props.onChange({ ...v, src: null, naturalWidth: null, naturalHeight: null })}>
                 <Trash2 /> Remove

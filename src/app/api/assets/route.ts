@@ -1,6 +1,11 @@
-import { errorResponse, uploadAsset } from "@/lib/server/handlers";
+import { errorResponse, listAssets, uploadAsset } from "@/lib/server/handlers";
 import { productionContext } from "@/lib/server/context";
 import { MAX_UPLOAD_BYTES } from "@/lib/server/image-info";
+
+export async function GET() {
+  const ctx = await productionContext();
+  return ctx instanceof Response ? ctx : listAssets(ctx);
+}
 
 export async function POST(req: Request) {
   const ctx = await productionContext();

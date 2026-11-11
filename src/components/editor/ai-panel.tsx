@@ -7,12 +7,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { useConfig } from "@/lib/client/config";
 import { resolveAiResult } from "@/lib/editor/state";
 import type { EmailDocument } from "@/lib/email/document";
-import type { Operation } from "@/lib/email/operations";
+import type { AvailableImage, Operation } from "@/lib/email/operations";
+import { AiAttachments, type CompAttachment, type EmailImageAttachment } from "./ai-attachments";
 import { useEditor } from "./context";
 
 interface ChatEntry {
   role: "user" | "assistant";
   text: string;
+  /** What was attached to this request, e.g. "comp.pdf, 3 images". */
+  attached?: string;
   unresolved?: string[];
   error?: boolean;
 }
@@ -32,11 +35,13 @@ const EXAMPLES = [
 
 export function AiPanel() {
   const config = useConfig();
-  const { state, change } = useEditor();
+  const { state, change, assets, refreshAssets } = useEditor();
   const [input, setInput] = useState("");
   const [chat, setChat] = useState<ChatEntry[]>([]);
   const [pending, setPending] = useState(false);
   const [stale, setStale] = useState<StaleResult | null>(null);
+  const [comp, setComp] = useState<CompAttachment | null>(null);
+  const [images, setImages] = useState<EmailImageAttachment[]>([]);
   const latest = useRef(state);
   useEffect(() => {
     latest.current = state;
@@ -55,11 +60,14 @@ export function AiPanel() {
   }
 
   async function send(text: string) {
-    const instruction = text.trim();
+    const sentImages = images;
+    const instruction =
+      text.trim() || (comp ? "Build this email from the attached comp." : sentImages.length ? "Place the uploaded images where they fit." : "");
     if (!instruction || pending) return;
+    const attached = [comp?.name, sentImages.length ? `${sentImages.length} image${sentImages.length === 1 ? "" : "s"}` : null].filter(Boolean).join(", ");
     const requestVersion = state.version;
     const history = chat.filter((c) => !c.error).map(({ role, text }) => ({ role, text }));
-    setChat((c) => [...c, { role: "user", text: instruction }]);
+    setChat((c) => [...c, { role: "user", text: instruction, attached: attached || undefined }]);
     setInput("");
     setStale(null);
     setPending(true);
@@ -67,7 +75,13 @@ export function AiPanel() {
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ document: state.doc, instruction, history }),
+        body: JSON.stringify({
+          document: state.doc,
+          instruction,
+          history,
+          reference: comp?.base64,
+          images: sentImages.map(({ assetId, name, width, height }) => ({ assetId, name: name.slice(0, 120), width, height })),
+        }),
       });
       const body = (await res.json().catch(() => ({}))) as {
         error?: string;
@@ -76,6 +90,7 @@ export function AiPanel() {
         operations?: Operation[];
         summary?: string;
         unresolved?: string[];
+        images?: AvailableImage[];
       };
       if (!res.ok || !body.document || !body.operations) {
         const msg = body.error ?? `AI request failed (${res.status}).`;
@@ -90,7 +105,10 @@ export function AiPanel() {
         currentDoc: now.doc,
         resultDoc: body.document,
         operations: body.operations,
+        images: body.images,
       });
+      // Placed images are used up; the comp stays so follow-up requests can still refer to it.
+      setImages((list) => list.filter((x) => !sentImages.includes(x)));
       if (resolution.kind === "apply") {
         const doc = body.document;
         change(() => doc);
@@ -125,6 +143,7 @@ export function AiPanel() {
         {chat.map((c, i) => (
           <div key={i} className={`rounded-md px-3 py-2 text-sm whitespace-pre-wrap ${c.role === "user" ? "ml-6 bg-neutral-900 text-white" : c.error ? "mr-6 bg-red-50 text-red-800" : "mr-6 bg-neutral-100"}`}>
             {c.text}
+            {c.attached && <div className="mt-1 text-[11px] opacity-70">Attached: {c.attached}</div>}
             {c.unresolved && c.unresolved.length > 0 && (
               <div className="mt-2 border-t border-neutral-200 pt-1.5 text-xs text-amber-800">
                 Still needed:
@@ -174,10 +193,11 @@ export function AiPanel() {
           send(input);
         }}
       >
+        <AiAttachments assets={assets} comp={comp} images={images} onComp={setComp} onImages={setImages} onUploaded={refreshAssets} />
         <Textarea
           value={input}
           maxLength={4000}
-          placeholder={state.doc.modules.length ? "Ask for a change…" : "Describe the email you need…"}
+          placeholder={comp ? "Optional: anything to change from the comp…" : state.doc.modules.length ? "Ask for a change…" : "Describe the email you need…"}
           className="min-h-20 text-sm"
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
@@ -189,7 +209,7 @@ export function AiPanel() {
         />
         <div className="mt-2 flex items-center justify-between">
           <span className="text-[11px] text-neutral-400">{config.ai.model} · ⌘↵ to send</span>
-          <Button size="sm" type="submit" disabled={pending || !input.trim()}>
+          <Button size="sm" type="submit" disabled={pending || (!input.trim() && !comp && images.length === 0)}>
             {pending ? <Loader2 className="animate-spin" /> : <Send />} Send
           </Button>
         </div>

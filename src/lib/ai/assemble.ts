@@ -4,7 +4,8 @@ import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { requireBrand } from "@/lib/email/brands";
 import type { EmailDocument } from "@/lib/email/document";
 import { anthropicModel } from "@/lib/server/config";
-import { runAssembly, type AssemblyResult, type ModelCaller } from "./run";
+import type { Reference } from "./reference";
+import { runAssembly, type OfferedImage, type AssemblyResult, type ModelCaller } from "./run";
 import { AiOutputSchema } from "./schema";
 
 /** Server-side refusal fallback is supported on these models (first-party Claude API). */
@@ -34,6 +35,8 @@ export async function assembleWithAi(opts: {
   doc: EmailDocument;
   instruction: string;
   history: { role: "user" | "assistant"; text: string }[];
+  reference?: Reference;
+  images?: OfferedImage[];
 }): Promise<AssemblyResult> {
   requireBrand(opts.doc.brandId);
   try {

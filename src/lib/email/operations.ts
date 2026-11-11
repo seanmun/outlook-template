@@ -9,7 +9,7 @@
 import { z } from "zod";
 import { requireBrand } from "./brands";
 import { newModuleId, type EmailDocument, type ModuleInstance } from "./document";
-import type { ImageValue } from "./fields";
+import type { ImageSource, ImageValue } from "./fields";
 import { createModuleInstance, getModule, moduleSupportsBrand, validateDocument } from "./registry";
 import { liteToRichText, RichTextSchema } from "./richtext";
 
@@ -36,6 +36,14 @@ export const OperationSchema = z.discriminatedUnion("op", [
 ]);
 export type Operation = z.infer<typeof OperationSchema>;
 
+/** An image the user uploaded for this request. Operations place one with { "use": ref }. */
+export interface AvailableImage {
+  ref: string;
+  src: ImageSource;
+  width: number;
+  height: number;
+}
+
 export interface OperationError {
   opIndex: number;
   message: string;
@@ -45,7 +53,7 @@ export type ApplyResult =
   | { ok: true; doc: EmailDocument; touchedModuleIds: string[] }
   | { ok: false; errors: OperationError[] };
 
-function patchContent(module: ModuleInstance, patch: Record<string, unknown>, opIndex: number, errors: OperationError[]) {
+function patchContent(module: ModuleInstance, patch: Record<string, unknown>, opIndex: number, errors: OperationError[], images: AvailableImage[]) {
   const def = getModule(module.type)!;
   const next = structuredClone(module.content);
   for (const [key, value] of Object.entries(patch)) {
@@ -72,15 +80,25 @@ function patchContent(module: ModuleInstance, patch: Record<string, unknown>, op
         errors.push({ opIndex, message: `Field "${key}" must be an object with optional alt/width/linkUrl` });
         continue;
       }
-      const allowed = ["alt", "width", ...(field.allowLink ? ["linkUrl"] : [])];
+      const allowed = ["alt", "width", ...(field.allowLink ? ["linkUrl"] : []), ...(images.length ? ["use"] : [])];
       const v = value as Record<string, unknown>;
       const bad = Object.keys(v).filter((k) => !allowed.includes(k));
       if (bad.length) {
         errors.push({ opIndex, message: `Field "${key}": cannot set ${bad.join(", ")} (images must be uploaded by the user)` });
         continue;
       }
-      const current = next[key] as ImageValue;
-      next[key] = { ...current, ...v };
+      const { use, ...rest } = v;
+      let image = { ...(next[key] as ImageValue), ...rest } as ImageValue;
+      if (use !== undefined) {
+        const picked = images.find((i) => i.ref === use);
+        if (!picked) {
+          errors.push({ opIndex, message: `Field "${key}": no uploaded image "${String(use)}". Available: ${images.map((i) => i.ref).join(", ")}` });
+          continue;
+        }
+        const width = typeof rest.width === "number" ? rest.width : picked.width;
+        image = { ...image, src: picked.src, naturalWidth: picked.width, naturalHeight: picked.height, width: Math.max(16, Math.min(field.maxWidth, Math.round(width))) };
+      }
+      next[key] = image;
     } else {
       next[key] = value;
     }
@@ -106,7 +124,7 @@ function patchSettings(module: ModuleInstance, patch: Record<string, unknown>, o
   return next;
 }
 
-export function applyOperations(doc: EmailDocument, ops: Operation[], idFactory: () => string = newModuleId): ApplyResult {
+export function applyOperations(doc: EmailDocument, ops: Operation[], idFactory: () => string = newModuleId, images: AvailableImage[] = []): ApplyResult {
   const brand = requireBrand(doc.brandId);
   const errors: OperationError[] = [];
   const working: EmailDocument = structuredClone(doc);
@@ -126,7 +144,7 @@ export function applyOperations(doc: EmailDocument, ops: Operation[], idFactory:
         const id = idFactory();
         if (op.ref) refs.set(op.ref, id);
         let instance = createModuleInstance(op.moduleType, brand, id);
-        if (op.content) instance = { ...instance, content: patchContent(instance, op.content, opIndex, errors) };
+        if (op.content) instance = { ...instance, content: patchContent(instance, op.content, opIndex, errors, images) };
         if (op.settings) instance = { ...instance, settings: patchSettings(instance, op.settings, opIndex, errors) };
         const at = op.index === null ? working.modules.length : Math.min(op.index, working.modules.length);
         working.modules.splice(at, 0, instance);
@@ -140,7 +158,7 @@ export function applyOperations(doc: EmailDocument, ops: Operation[], idFactory:
           return;
         }
         let m = working.modules[i];
-        if (op.content) m = { ...m, content: patchContent(m, op.content, opIndex, errors) };
+        if (op.content) m = { ...m, content: patchContent(m, op.content, opIndex, errors, images) };
         if (op.settings) m = { ...m, settings: patchSettings(m, op.settings, opIndex, errors) };
         working.modules[i] = m;
         touched.add(m.id);

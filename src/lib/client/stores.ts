@@ -50,8 +50,16 @@ export interface UploadedImage {
   height: number;
 }
 
+/** An image the user uploaded earlier, ready to drop into any email. */
+export interface LibraryImage extends UploadedImage {
+  name: string;
+  thumbUrl: string;
+}
+
 export interface AssetClient {
   upload(file: File): Promise<UploadedImage>;
+  /** Every image this user has uploaded, newest first. */
+  list(): Promise<LibraryImage[]>;
   /** Synchronous URL for the preview iframe, or null if not loaded yet. */
   previewUrl(src: ImageSource): string | null;
   /** Ensures preview URLs for these sources are available; resolves when loaded. */
@@ -97,6 +105,10 @@ export const apiAssetClient: AssetClient = {
     form.append("file", file);
     const { asset } = await api<{ asset: { id: string; width: number; height: number } }>("/api/assets", { method: "POST", body: form });
     return { src: { kind: "asset", assetId: asset.id }, width: asset.width, height: asset.height };
+  },
+  async list() {
+    const { assets } = await api<{ assets: { id: string; width: number; height: number; originalFilename: string }[] }>("/api/assets");
+    return assets.map((a) => ({ src: { kind: "asset" as const, assetId: a.id }, width: a.width, height: a.height, name: a.originalFilename, thumbUrl: `/api/assets/${encodeURIComponent(a.id)}` }));
   },
   previewUrl(src) {
     return src.kind === "sample" ? sampleDataUrl(src.sampleId) : `/api/assets/${encodeURIComponent(src.assetId)}`;
@@ -174,6 +186,20 @@ async function idbPut(key: string, value: string) {
     tx.onerror = () => rej(tx.error);
   });
 }
+async function idbAll(): Promise<{ key: string; value: string }[]> {
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const out: { key: string; value: string }[] = [];
+    const r = db.transaction("images").objectStore("images").openCursor();
+    r.onsuccess = () => {
+      const c = r.result;
+      if (!c) return res(out);
+      out.push({ key: String(c.key), value: String(c.value) });
+      c.continue();
+    };
+    r.onerror = () => rej(r.error);
+  });
+}
 async function idbGet(key: string): Promise<string | null> {
   const db = await idb();
   return new Promise((res, rej) => {
@@ -213,6 +239,16 @@ export const localAssetClient: AssetClient = {
     await idbPut(id, dataUrl);
     localCache.set(id, dataUrl);
     return { src: { kind: "asset", assetId: id }, width, height };
+  },
+  async list() {
+    const rows = await idbAll();
+    const out: LibraryImage[] = [];
+    for (const { key, value } of rows) {
+      localCache.set(key, value);
+      const dims = await imageDimensions(value).catch(() => null);
+      if (dims) out.push({ src: { kind: "asset", assetId: key }, ...dims, name: "Image", thumbUrl: value });
+    }
+    return out.reverse();
   },
   previewUrl(src) {
     return src.kind === "sample" ? sampleDataUrl(src.sampleId) : (localCache.get(src.assetId) ?? null);

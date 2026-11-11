@@ -3,7 +3,7 @@ import JSZip from "jszip";
 import { sampleEmailDocument } from "@/lib/email/starter";
 import { sampleBytes } from "@/lib/email/samples";
 import type { EmailDocument } from "@/lib/email/document";
-import { createEmail, deleteEmail, exportForDemo, exportForUser, getEmail, listEmails, readAsset, updateEmail, uploadAsset, type HandlerContext } from "./handlers";
+import { createEmail, deleteEmail, exportForDemo, exportForUser, getEmail, listAssets, listEmails, readAsset, updateEmail, uploadAsset, type HandlerContext } from "./handlers";
 import { MemoryAssetRepo, MemoryEmailRepo } from "./memory-repo";
 
 function setup() {
@@ -40,6 +40,7 @@ describe("authorization", () => {
       deleteEmail(anon, id),
       uploadAsset(anon, { data: png(), name: "x.png" }),
       readAsset(anon, id),
+      listAssets(anon),
       exportForUser(anon, { document: sampleEmailDocument("harbor-pine"), formats: ["oft"] }),
     ]);
     for (const r of responses) expect(r.status).toBe(401);
@@ -61,6 +62,15 @@ describe("authorization", () => {
     const id = await uploadFor(as("alice"));
     expect((await readAsset(as("bob"), id)).status).toBe(404);
     expect((await readAsset(as("alice"), id)).status).toBe(200);
+  });
+
+  it("lists only the signed-in user's images", async () => {
+    const { as } = setup();
+    const id = await uploadFor(as("alice"));
+    const mine = (await (await listAssets(as("alice"))).json()) as { assets: { id: string; width: number }[] };
+    expect(mine.assets.map((a) => a.id)).toEqual([id]);
+    expect(mine.assets[0].width).toBeGreaterThan(0);
+    expect(((await (await listAssets(as("bob"))).json()) as { assets: unknown[] }).assets).toHaveLength(0);
   });
 
   it("refuses to save or export a document that references someone else's asset", async () => {

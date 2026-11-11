@@ -167,6 +167,12 @@ export class SupabaseAssetRepo implements AssetRepo {
     return { record, data: new Uint8Array(await data.arrayBuffer()) };
   }
 
+  async list(ownerId: string) {
+    const { data, error } = await this.db.from("assets").select("*").eq("owner_id", ownerId).order("created_at", { ascending: false }).limit(500);
+    if (error) fail("list assets", error);
+    return (data ?? []).map((r) => toAsset(r as AssetRow));
+  }
+
   async existing(ownerId: string, ids: string[]) {
     if (ids.length === 0) return new Set<string>();
     const { data, error } = await this.db.from("assets").select("id").in("id", ids).eq("owner_id", ownerId);

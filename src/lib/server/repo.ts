@@ -48,6 +48,8 @@ export interface AssetRepo {
   create(ownerId: string, asset: NewAsset): Promise<AssetRecord>;
   get(ownerId: string, id: string): Promise<AssetRecord | null>;
   read(ownerId: string, id: string): Promise<{ record: AssetRecord; data: Uint8Array } | null>;
+  /** The owner's images, newest first. */
+  list(ownerId: string): Promise<AssetRecord[]>;
   /** Returns the subset of ids that exist and belong to ownerId. */
   existing(ownerId: string, ids: string[]): Promise<Set<string>>;
 }

@@ -108,6 +108,12 @@ export async function uploadAsset(ctx: HandlerContext, file: { data: Uint8Array;
   return json({ asset: { id: rec.id, mimeType: rec.mimeType, width: rec.width, height: rec.height, originalFilename: rec.originalFilename } }, 201);
 }
 
+export async function listAssets(ctx: HandlerContext) {
+  if (!ctx.userId) return unauthorized();
+  const rows = await ctx.assets.list(ctx.userId);
+  return json({ assets: rows.map((r) => ({ id: r.id, width: r.width, height: r.height, originalFilename: r.originalFilename, createdAt: r.createdAt })) });
+}
+
 export async function readAsset(ctx: HandlerContext, id: string): Promise<Response> {
   if (!ctx.userId) return unauthorized();
   if (!UUID_RE.test(id)) return notFound();
