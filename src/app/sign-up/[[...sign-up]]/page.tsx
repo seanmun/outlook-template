@@ -14,10 +14,10 @@ export default async function SignUpPage() {
   }
   // Already signed in: go straight to the app. Rendering the Clerk form here makes it
   // bounce between /sign-in and /sign-up forever after an email link is opened.
-  if ((await auth()).userId) redirect("/");
+  if ((await auth()).userId) redirect("/new");
   return (
     <main className="flex flex-1 items-center justify-center p-10">
-      <SignUp signInUrl="/sign-in" forceRedirectUrl="/" />
+      <SignUp signInUrl="/sign-in" forceRedirectUrl="/new" />
     </main>
   );
 }

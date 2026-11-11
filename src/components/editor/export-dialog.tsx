@@ -5,6 +5,7 @@ import { AlertTriangle, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { TextAd } from "@/components/ad-slot";
 import { useConfig } from "@/lib/client/config";
 import { localImagesForExport } from "@/lib/client/stores";
 import { findContentIssues } from "@/lib/email/issues";
@@ -123,6 +124,8 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
         <p className="text-xs text-neutral-500">
           Images are embedded in the files (inline attachments), so recipients never load them from this app. Always send yourself a test from Outlook first.
         </p>
+
+        <TextAd placement="export-dialog" />
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

@@ -1,12 +1,13 @@
 "use client";
 import { useState } from "react";
-import { ArrowDown, Download, LayoutTemplate, ScanEye, Sparkles } from "lucide-react";
+import { ArrowRight, Download, LayoutTemplate, ScanEye, Sparkles } from "lucide-react";
+import Link from "next/link";
 import { OutlookNoTicker } from "./outlook-no-ticker";
 
 const STEPS = [
-  { icon: LayoutTemplate, title: "Pick a brand", body: "Each brand gets its own approved modules. Nobody gets to freestyle the footer." },
-  { icon: Sparkles, title: "Describe it", body: "“Town hall announcement with a hero and an RSVP button.” AI snaps it together from those modules." },
-  { icon: Download, title: "Tweak & download", body: "Fix the copy, swap the image, nudge the padding. Grab an .oft and hand it off." },
+  { icon: Sparkles, title: "Start fast", body: "Open an example, drop in a design comp, or describe it. AI builds the first draft from your brand\u2019s blocks." },
+  { icon: LayoutTemplate, title: "Edit on the email", body: "Drag blocks into place, split rows into columns, and type straight onto the canvas." },
+  { icon: Download, title: "Download & send", body: "Grab an .oft your team opens in Outlook. The table soup is already written." },
 ];
 
 /** A labelled block of the mock. In X-ray mode it shows the table markup it really is. */
@@ -49,18 +50,21 @@ function EmailMock() {
         }`}
       >
         <div className="mb-1 flex items-center gap-1.5">
-          <span className="size-2 rounded-full bg-red-400" />
-          <span className="size-2 rounded-full bg-amber-400" />
-          <span className="size-2 rounded-full bg-green-400" />
-          <span className={`ml-2 flex h-3 min-w-0 flex-1 items-center overflow-hidden rounded px-1 font-mono text-[8px] whitespace-nowrap transition-colors ${xray ? "bg-neutral-800 text-red-400" : "bg-neutral-100 text-transparent"}`}>
+          <span className={`flex h-3 min-w-0 flex-1 items-center overflow-hidden rounded px-1 font-mono text-[8px] whitespace-nowrap transition-colors ${xray ? "bg-neutral-800 text-red-400" : "bg-neutral-100 text-transparent"}`}>
             &lt;table width=&quot;600&quot; cellpadding=&quot;0&quot;&gt;
+          </span>
+          {/* Windows-style window buttons: minimise, maximise, close. */}
+          <span aria-hidden className={`flex shrink-0 items-center gap-2 pl-1 transition-colors ${xray ? "text-neutral-500" : "text-neutral-400"}`}>
+            <span className="h-px w-2 bg-current" />
+            <span className="size-2 border border-current" />
+            <span className="relative size-2 before:absolute before:top-1/2 before:left-0 before:h-px before:w-full before:rotate-45 before:bg-current after:absolute after:top-1/2 after:left-0 after:h-px after:w-full after:-rotate-45 after:bg-current" />
           </span>
         </div>
         <div className={`rounded-md p-0.5 transition-all duration-300 ${xray ? "outline-1 outline-dashed outline-red-500/60" : ""}`}>
           <Part xray={xray} tag={'<tr><td bgcolor="#171717"><table><tr><td>'} className="!mt-0 flex h-8 items-center justify-center bg-neutral-900">
             <span className="font-[family-name:var(--font-display)] text-[10px] tracking-wider text-white">YOUR BRAND</span>
           </Part>
-          <Part xray={xray} tag={'<tr><td><img width="600" height="260" style="display:block">'} className="h-20 -translate-x-1 bg-gradient-to-br from-red-500 via-orange-400 to-amber-300" />
+          <Part xray={xray} tag={'<tr><td><img width="600" height="260" style="display:block">'} className="h-20 -translate-x-1 bg-gradient-to-br from-sky-600 via-teal-500 to-emerald-400" />
           <Part xray={xray} tag={'<tr><td style="padding:28px 40px"><h1 style="margin:0"><p style="margin:0 0 14px 0">'} className="bg-neutral-50">
             <div className="space-y-1.5 p-2">
               <div className="h-2.5 w-2/3 rounded bg-neutral-800" />
@@ -69,9 +73,9 @@ function EmailMock() {
               <div className="h-1.5 w-3/4 rounded bg-neutral-300" />
             </div>
           </Part>
-          <Part xray={xray} tag={'<tr><td><table align="center"><tr><td bgcolor="#dc2626"><a>'} className="translate-x-1 bg-neutral-50">
+          <Part xray={xray} tag={'<tr><td><table align="center"><tr><td bgcolor="#0d9488"><a>'} className="translate-x-1 bg-neutral-50">
             <div className="flex justify-center py-2">
-              <span className="rounded bg-red-600 px-4 py-1 text-[10px] font-semibold text-white">RSVP</span>
+              <span className="rounded bg-teal-600 px-4 py-1 text-[10px] font-semibold text-white">RSVP</span>
             </div>
           </Part>
           <Part xray={xray} tag={"</td></tr></table></td></tr></table>"} className="h-6 bg-neutral-200" />
@@ -113,6 +117,15 @@ export function MarketingHero() {
             Describe the email. AI assembles it from your brand&apos;s approved building blocks. Polish it in a visual editor, then download a template your
             team opens in Outlook and sends.
           </p>
+          <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
+            <Link
+              href="/new"
+              className="group inline-flex items-center gap-2.5 rounded-lg border-2 border-neutral-900 bg-red-600 px-6 py-3 font-[family-name:var(--font-display)] text-lg leading-none tracking-wide text-white uppercase shadow-[5px_5px_0_0_#171717] transition-all duration-150 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:bg-red-500 hover:shadow-[7px_7px_0_0_#171717] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-neutral-900 active:translate-x-1 active:translate-y-1 active:shadow-[1px_1px_0_0_#171717]"
+            >
+              Build an email <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" strokeWidth={3} />
+            </Link>
+            <span className="text-xs text-neutral-500">No HTML. No table hacks. No crying.</span>
+          </div>
           <figure className="mt-5 max-w-md">
             <code className="block rounded-md bg-neutral-950 px-3 py-2 font-mono text-xs leading-relaxed break-all text-neutral-300">
               <span className="text-red-400">&lt;table&gt;</span>&lt;tr&gt;&lt;td&gt;<span className="text-red-400">&lt;table&gt;</span>&lt;tr&gt;&lt;td&gt;
@@ -122,15 +135,6 @@ export function MarketingHero() {
               Classic Outlook for Windows still renders email with Microsoft Word. We write the table soup so you don&apos;t have to.
             </figcaption>
           </figure>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <a
-              href="#new-email"
-              className="inline-flex items-center gap-2 rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-neutral-800"
-            >
-              Build an email <ArrowDown className="size-4" />
-            </a>
-            <span className="text-xs text-neutral-500">No HTML. No table hacks. No crying.</span>
-          </div>
         </div>
         <EmailMock />
       </div>

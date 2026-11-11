@@ -49,7 +49,7 @@ function EditorForVisitor({ id }: { id: string }) {
     return (
       <div className="p-10 text-sm">
         {loadError}{" "}
-        <Link className="underline" href="/">
+        <Link className="underline" href="/new">
           Back to drafts
         </Link>
       </div>

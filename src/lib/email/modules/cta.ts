@@ -61,7 +61,7 @@ export const ctaModule = defineModule<C, S>({
     const href = sanitizeUrl(content.url) ?? "#";
     const bg = safeColor(s.buttonColor);
     // Padding sits on the <td> (honoured by Outlook's Word engine); the link is text-sized.
-    // Rounded corners degrade to square in Outlook for Windows; intentionally no VML.
+    // Square by default (brand.buttonRadius is 0): no rounding method is verified for .oft yet; intentionally no VML.
     const radius = brand.buttonRadius;
     const button = `<table ${TABLE_ATTRS} style="border-collapse:separate;"><tr><td align="center" bgcolor="${bg}" style="${style({
       padding: `${s.buttonPaddingY}px ${s.buttonPaddingX}px`,

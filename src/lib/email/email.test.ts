@@ -5,6 +5,7 @@ import { findContentIssues } from "./issues";
 import { applyOperations, type Operation } from "./operations";
 import { allModules } from "./document";
 import { columnWidths } from "./modules/columns";
+import { EXAMPLES } from "./examples";
 import { MODULES, validateDocument } from "./registry";
 import { collectImageSources, renderEmailHtml } from "./render";
 import { liteToRichText, RichTextSchema } from "./richtext";
@@ -264,6 +265,19 @@ describe("columns", () => {
 
 const createTextIn = (doc: { modules: { columns?: { blocks: { type: string; content: Record<string, unknown> }[] }[] }[] }) =>
   doc.modules[0].columns![1].blocks.find((b) => b.type === "text")!.content.headline;
+
+describe("home page examples", () => {
+  it.each(EXAMPLES.map((e) => [e.id, e] as const))("%s builds a valid email that renders with its images", (_id, example) => {
+    const doc = example.build();
+    expect(validateDocument(doc).ok).toBe(true);
+    expect(doc.brandId).toBe(example.brandId);
+    const html = renderEmailHtml(doc, { resolveImage: resolve });
+    expect(html).not.toContain("Image placeholder");
+    expect(html).not.toMatch(/\[\[PLACEHOLDER/);
+    // Building twice gives independent drafts.
+    expect(example.build().modules[0].id).not.toBe(doc.modules[0].id);
+  });
+});
 
 describe("operations (AI edits)", () => {
   const base = () => sampleEmailDocument("harbor-pine");

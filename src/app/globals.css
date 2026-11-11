@@ -128,3 +128,17 @@
     @apply font-sans;
   }
 }
+
+/* Ad placements. Side rails need room beside the 896px content column and enough height
+   for a 600px creative; when they do not fit, the single inline ad shows instead. */
+.ad-rail {
+  display: none;
+}
+@media (min-width: 1340px) and (min-height: 730px) {
+  .ad-rail {
+    display: block;
+  }
+  .ad-inline {
+    display: none;
+  }
+}

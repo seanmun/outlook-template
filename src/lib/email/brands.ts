@@ -32,6 +32,10 @@ export interface Brand {
   palette: { label: string; value: string }[];
   wordmark: string;
   headlineSizes: number[];
+  /**
+   * Button corner radius in px. Kept at 0 (square) for every brand until a rounding method is verified
+   * in Outlook: sending an .oft makes Word rewrite the HTML, which drops CSS rounding for all recipients.
+   */
   buttonRadius: number;
   /** Module types this brand may use, in catalogue order. */
   modules: string[];
@@ -71,7 +75,7 @@ export const BRANDS: Brand[] = [
     ],
     wordmark: "Harbor & Pine",
     headlineSizes: [22, 26, 30],
-    buttonRadius: 4,
+    buttonRadius: 0,
     modules: STANDARD_MODULES,
     voice: "Warm, plain-spoken, concise. Short sentences. No hype.",
   },
@@ -104,7 +108,7 @@ export const BRANDS: Brand[] = [
     ],
     wordmark: "LUMEN LABS",
     headlineSizes: [20, 24, 28],
-    buttonRadius: 20,
+    buttonRadius: 0,
     modules: STANDARD_MODULES,
     voice: "Energetic but professional. Direct calls to action. Avoid jargon.",
   },

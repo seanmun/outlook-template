@@ -18,8 +18,9 @@ export function DemoBanner() {
     );
   return (
     <div className="border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-xs text-amber-900">
-      <strong>Local demo mode.</strong> Drafts and images are stored only in this browser. No sign-in, no server storage.
-      {missing.length > 0 && <> Missing configuration: {missing.join(", ")}.</>} See README for production setup.
+      <strong>No account needed.</strong> Your drafts and images are saved in this browser only.
+      {/* Setup details are for whoever runs the app locally, never for visitors. */}
+      {process.env.NODE_ENV === "development" && missing.length > 0 && <> Developer note: accounts are off because {missing.join(", ")} {missing.length === 1 ? "is" : "are"} not set. See README.</>}
     </div>
   );
 }
@@ -34,6 +35,11 @@ export function AppHeader({ children }: { children?: React.ReactNode }) {
         <span className="ml-0.5 font-sans text-xs font-semibold text-neutral-400">.email</span>
       </Link>
       <div className="flex min-w-0 flex-1 items-center gap-3">{children}</div>
+      {!children && (
+        <Link href="/new" className="text-sm font-medium text-neutral-700 hover:text-neutral-900">
+          My emails
+        </Link>
+      )}
       {ready && mode === "production" && <UserButton />}
       {ready && mode === "demo" && authAvailable && (
         <div className="flex items-center gap-3">
