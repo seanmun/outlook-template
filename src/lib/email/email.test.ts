@@ -211,8 +211,9 @@ describe("columns", () => {
     expect(row.columns![1].blocks[0].settings.padding).toMatchObject({ left: 0, right: 0 });
     expect(columnWidths(row.settings as Parameters<typeof columnWidths>[0], 600)).toEqual([165, 331]);
     const html = renderEmailHtml(doc, { resolveImage: resolve, annotate: true });
-    expect(html).toContain('<td width="165" valign="top"');
-    expect(html).toContain('<td width="331" valign="top"');
+    expect(html).toContain('<td data-column="0" width="165" valign="top"');
+    expect(html).toContain('<td data-column="1" width="331" valign="top"');
+    expect(renderEmailHtml(doc, { resolveImage: resolve })).not.toMatch(/data-(column|module-id)/);
     expect((html.match(/data-module-id=/g) ?? []).length).toBe(4);
     expect(html).not.toMatch(/display:\s*(flex|grid)/);
   });

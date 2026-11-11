@@ -11,6 +11,7 @@ import { findContentIssues } from "@/lib/email/issues";
 import { COLUMN_LAYOUTS, COLUMN_LAYOUT_IDS, type ColumnLayout } from "@/lib/email/modules/columns";
 import { getModule, modulesForBrand } from "@/lib/email/registry";
 import { useEditor } from "./context";
+import { useDrag, useDragSource } from "./drag";
 
 function moduleLabel(m: ModuleInstance): string {
   const c = m.content as Record<string, unknown>;
@@ -149,6 +150,8 @@ export function ModulesPanel() {
   const blocks = catalog.filter((d) => d.type !== COLUMNS_TYPE);
   const columnsAvailable = catalog.some((d) => d.type === COLUMNS_TYPE);
   const [picked, setPicked] = useState<ColumnTarget | null>(null);
+  const drag = useDrag();
+  const dragSource = useDragSource();
   const warns = useMemo(() => {
     const counts = new Map<string, number>();
     for (const i of findContentIssues(state.doc)) if (i.moduleId) counts.set(i.moduleId, (counts.get(i.moduleId) ?? 0) + 1);
@@ -201,10 +204,11 @@ export function ModulesPanel() {
             {COLUMN_LAYOUT_IDS.map((layout) => (
               <button
                 key={layout}
-                onClick={() => addColumns(layout)}
+                {...dragSource({ kind: "new", type: COLUMNS_TYPE, settings: { layout } }, COLUMN_LAYOUTS[layout].label)}
+                onClick={() => !drag.consumeClick() && addColumns(layout)}
                 aria-label={COLUMN_LAYOUTS[layout].label}
                 title={COLUMN_LAYOUTS[layout].label}
-                className="flex items-center justify-center rounded-md border p-2 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
+                className="flex cursor-grab items-center justify-center rounded-md border p-2 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
               >
                 <LayoutGlyph layout={layout} />
               </button>
@@ -218,12 +222,17 @@ export function ModulesPanel() {
       <section>
         <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">Add a block</h3>
         <p className="mb-2 text-xs text-neutral-500">
-          Goes to <span className={target ? "font-medium text-blue-700" : "font-medium text-neutral-700"}>{where.label}</span>.
+          Drag onto the email, or click to add to <span className={target ? "font-medium text-blue-700" : "font-medium text-neutral-700"}>{where.label}</span>.
         </p>
         <div className="grid gap-1.5">
           {blocks.map((def) => (
-            <button key={def.type} onClick={() => addBlock(def.type)} className="flex items-start gap-2 rounded-md border p-2 text-left text-sm hover:border-neutral-400">
-              <Plus className="mt-0.5 size-4 shrink-0 text-neutral-400" />
+            <button
+              key={def.type}
+              {...dragSource({ kind: "new", type: def.type }, def.name)}
+              onClick={() => !drag.consumeClick() && addBlock(def.type)}
+              className="flex cursor-grab items-start gap-2 rounded-md border p-2 text-left text-sm hover:border-neutral-400"
+            >
+              <GripVertical className="mt-0.5 size-4 shrink-0 text-neutral-400" />
               <span>
                 <span className="font-medium">{def.name}</span>
                 <span className="block text-xs text-neutral-500">{def.description}</span>

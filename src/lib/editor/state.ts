@@ -99,14 +99,73 @@ export function canPlace(doc: EmailDocument, type: string, dest: Destination): b
   return !!col && type !== COLUMNS_TYPE && col.blocks.length < MAX_BLOCKS_PER_COLUMN;
 }
 
+function create(doc: EmailDocument, type: string, id: string, settings?: Record<string, unknown>): ModuleInstance {
+  let m = createModuleInstance(type, requireBrand(doc.brandId), id);
+  if (settings) m = { ...m, settings: { ...m.settings, ...settings } };
+  const layout = m.settings.layout as ColumnLayout | undefined;
+  if (m.type === COLUMNS_TYPE && layout) m = { ...m, columns: reflowColumns(m.columns ?? [], layout) };
+  return m;
+}
+
+/** What is being dragged: a new module from the palette, or an existing one. */
+export type DragPayload = { kind: "new"; type: string; settings?: Record<string, unknown> } | { kind: "move"; id: string };
+
+/** Where a drag lands, described relative to what is already there so it survives lifting the dragged module out. */
+export type DropTarget =
+  /** Directly before this module, in whatever list it is in. */
+  | { kind: "before"; anchorId: string }
+  /** At the end of the top level (parentId null) or of one column. */
+  | { kind: "end"; parentId: string | null; column?: number }
+  /** Beside this full-width block: the two become a two-column row. */
+  | { kind: "split"; anchorId: string; side: "left" | "right" };
+
+/** The ids of a document in order, with nesting: equal shapes mean a drop changed nothing. */
+const shape = (doc: EmailDocument) => JSON.stringify(doc.modules.map((m) => [m.id, m.columns?.map((c) => c.blocks.map((b) => b.id))]));
+
+/** A block leaving a column gets its full-width side padding back. */
+function restoreSidePadding(doc: EmailDocument, m: ModuleInstance): ModuleInstance {
+  const p = m.settings.padding as { top: number; right: number; bottom: number; left: number } | undefined;
+  const d = getModule(m.type)?.defaults(requireBrand(doc.brandId)).settings as { padding?: { left: number; right: number } } | undefined;
+  if (!p || !d?.padding || p.left !== 0 || p.right !== 0) return m;
+  return { ...m, settings: { ...m.settings, padding: { ...p, left: d.padding.left, right: d.padding.right } } };
+}
+
 export const docOps = {
   add(doc: EmailDocument, type: string, dest: Destination, id = newModuleId(), settings?: Record<string, unknown>): EmailDocument {
     if (!canPlace(doc, type, dest)) return doc;
-    let m = createModuleInstance(type, requireBrand(doc.brandId), id);
-    if (settings) m = { ...m, settings: { ...m.settings, ...settings } };
-    const layout = m.settings.layout as ColumnLayout | undefined;
-    if (m.type === COLUMNS_TYPE && layout) m = { ...m, columns: reflowColumns(m.columns ?? [], layout) };
-    return insert(doc, m, dest);
+    return insert(doc, create(doc, type, id, settings), dest);
+  },
+  /** Completes a drag. Returns the same document when the drop is not allowed or changes nothing. */
+  drop(doc: EmailDocument, payload: DragPayload, target: DropTarget, newId = newModuleId()): EmailDocument {
+    const moving = payload.kind === "move" ? findModule(doc, payload.id) : undefined;
+    if (payload.kind === "move" && !moving) return doc;
+    if (moving && "anchorId" in target && target.anchorId === moving.id) return doc;
+    const from = moving ? locateModule(doc, moving.id) : null;
+    const base = moving ? without(doc, moving.id) : doc;
+    let item = moving ?? create(doc, (payload as { type: string }).type, newId, (payload as { settings?: Record<string, unknown> }).settings);
+
+    let next: EmailDocument;
+    if (target.kind === "split") {
+      const at = locateModule(base, target.anchorId);
+      const anchor = findModule(base, target.anchorId);
+      if (!at || at.parentId !== null || !anchor || anchor.type === COLUMNS_TYPE || item.type === COLUMNS_TYPE) return doc;
+      const row = create(doc, COLUMNS_TYPE, newModuleId(), { layout: "1-1" });
+      const pair = target.side === "left" ? [item, anchor] : [anchor, item];
+      const modules = [...base.modules];
+      modules[at.index] = { ...row, columns: pair.map((b) => ({ blocks: [fitToColumn(b)] })) };
+      next = { ...base, modules };
+    } else {
+      let dest: Destination;
+      if (target.kind === "before") {
+        const at = locateModule(base, target.anchorId);
+        if (!at) return doc;
+        dest = at;
+      } else dest = target.parentId === null ? { parentId: null, index: null } : { parentId: target.parentId, column: target.column ?? 0, index: null };
+      if (!canPlace(base, item.type, dest)) return doc;
+      if (dest.parentId === null && from && from.parentId !== null) item = restoreSidePadding(doc, item);
+      next = insert(base, item, dest);
+    }
+    return shape(next) === shape(doc) ? doc : next;
   },
   duplicate(doc: EmailDocument, id: string, newId = newModuleId()): EmailDocument {
     const loc = locateModule(doc, id);

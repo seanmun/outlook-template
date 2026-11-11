@@ -73,7 +73,7 @@ export const columnsModule = defineModule<C, S>({
     const cells = widths
       .map((w, i) => {
         const gapCell = i > 0 && s.gap > 0 ? `<td width="${s.gap}" style="${style({ width: `${s.gap}px`, "font-size": 0, "line-height": 0 })}">&nbsp;</td>` : "";
-        return `${gapCell}<td width="${w}" valign="${s.valign}" style="${style({ width: `${w}px`, "vertical-align": s.valign })}"><table ${TABLE_ATTRS} width="${w}" style="${style({ width: `${w}px`, "border-collapse": "collapse" })}">${
+        return `${gapCell}<td${ctx.columnAttrs(i)} width="${w}" valign="${s.valign}" style="${style({ width: `${w}px`, "vertical-align": s.valign })}"><table ${TABLE_ATTRS} width="${w}" style="${style({ width: `${w}px`, "border-collapse": "collapse" })}">${
           ctx.renderColumn(i, w) || `<tr><td style="font-size:0;line-height:0;">&nbsp;</td></tr>`
         }</table></td>`;
       })

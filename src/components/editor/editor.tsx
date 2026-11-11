@@ -16,6 +16,7 @@ import { TopBar } from "./top-bar";
 import { AiPanel } from "./ai-panel";
 import { ModulesPanel } from "./modules-panel";
 import { Preview } from "./preview";
+import { DragProvider } from "./drag";
 import { Inspector } from "./inspector";
 
 const AUTOSAVE_MS = 1200;
@@ -148,6 +149,7 @@ function LoadedEditor({
 
   return (
     <EditorContext.Provider value={ctx}>
+      <DragProvider>
       <div className="flex h-screen flex-col overflow-hidden">
         <DemoBanner />
         <TopBar onRetrySave={() => save(state.doc, state.version)} />
@@ -174,6 +176,7 @@ function LoadedEditor({
           </aside>
         </div>
       </div>
+      </DragProvider>
     </EditorContext.Provider>
   );
 }

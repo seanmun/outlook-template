@@ -43,6 +43,7 @@ function renderModules(modules: ModuleInstance[], brand: Brand, opts: RenderOpti
         resolveImage: opts.resolveImage,
         contentWidth,
         renderColumn: (column, width) => renderModules(m.columns?.[column]?.blocks ?? [], brand, opts, width),
+        columnAttrs: (column) => (opts.annotate ? ` data-column="${column}"` : ""),
       });
     })
     .join("\n");
@@ -60,7 +61,7 @@ export function renderEmailHtml(doc: EmailDocument, opts: RenderOptions): string
     opts.annotate
       ? `<style>${DROP_KEYFRAMES}${(opts.animateModuleIds ?? [])
           .map((id, i) => `[data-module-id="${escapeAttr(id)}"]>td{animation:otb-drop .42s cubic-bezier(.2,1.4,.4,1) ${Math.min(i, 12) * 70}ms both;position:relative}`)
-          .join("")}[data-module-id]{cursor:pointer}[data-module-id]:hover{outline:2px dashed #93c5fd;outline-offset:-2px}${
+          .join("")}body{-webkit-user-select:none;user-select:none}[data-module-id]{cursor:grab}[data-module-id]:hover{outline:2px dashed #93c5fd;outline-offset:-2px}${
           opts.selectedModuleId ? `[data-module-id="${escapeAttr(opts.selectedModuleId)}"]{outline:2px solid #2563eb;outline-offset:-2px}` : ""
         }</style>`
       : "";

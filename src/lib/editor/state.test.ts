@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { sampleEmailDocument } from "@/lib/email/starter";
 import { applyOperations } from "@/lib/email/operations";
+import { resolveDrop } from "./drop-target";
 import { docOps, editorReducer, initialEditorState, resolveAiResult } from "./state";
 
 describe("editor history", () => {
@@ -119,5 +120,96 @@ describe("columns in the editor", () => {
     s = editorReducer(s, { type: "change", update: (d) => docOps.setContent(d, "m_cta0000001", "label", "Go") });
     expect(s.selectedId).toBe("m_cta0000001");
     expect(s.doc.modules[1].columns![1].blocks[0].content.label).toBe("Go");
+  });
+});
+
+describe("drag and drop", () => {
+  const start = () => {
+    let doc = { ...sampleEmailDocument("harbor-pine"), modules: [] as ReturnType<typeof sampleEmailDocument>["modules"] };
+    doc = docOps.add(doc, "header", { parentId: null, index: null }, "m_header0001");
+    doc = docOps.add(doc, "text", { parentId: null, index: null }, "m_text000001");
+    doc = docOps.add(doc, "footer", { parentId: null, index: null }, "m_footer0001");
+    return doc;
+  };
+  const tree = (d: ReturnType<typeof start>) => d.modules.map((m) => (m.columns ? m.columns.map((c) => c.blocks.map((b) => b.id)) : m.id));
+
+  it("drops a new block before a module or at the end", () => {
+    let doc = docOps.drop(start(), { kind: "new", type: "cta" }, { kind: "before", anchorId: "m_footer0001" }, "m_cta0000001");
+    doc = docOps.drop(doc, { kind: "new", type: "divider" }, { kind: "end", parentId: null }, "m_div0000001");
+    expect(tree(doc)).toEqual(["m_header0001", "m_text000001", "m_cta0000001", "m_footer0001", "m_div0000001"]);
+  });
+
+  it("splits a block into a two-column row when dropped at its side", () => {
+    const doc = docOps.drop(start(), { kind: "new", type: "hero" }, { kind: "split", anchorId: "m_text000001", side: "left" }, "m_hero000001");
+    expect(tree(doc)).toEqual(["m_header0001", [["m_hero000001"], ["m_text000001"]], "m_footer0001"]);
+    expect(doc.modules[1].settings.layout).toBe("1-1");
+    expect(doc.modules[1].columns![1].blocks[0].settings.padding).toMatchObject({ left: 0, right: 0 });
+    // Moving an existing block to the other side of another block works the same way.
+    const moved = docOps.drop(start(), { kind: "move", id: "m_header0001" }, { kind: "split", anchorId: "m_text000001", side: "right" });
+    expect(tree(moved)).toEqual([[["m_text000001"], ["m_header0001"]], "m_footer0001"]);
+  });
+
+  it("moves blocks into, within and out of columns, restoring full-width padding on the way out", () => {
+    let doc = docOps.drop(start(), { kind: "new", type: "hero" }, { kind: "split", anchorId: "m_text000001", side: "left" }, "m_hero000001");
+    const rowId = doc.modules[1].id;
+    doc = docOps.drop(doc, { kind: "new", type: "cta" }, { kind: "end", parentId: rowId, column: 1 }, "m_cta0000001");
+    doc = docOps.drop(doc, { kind: "move", id: "m_cta0000001" }, { kind: "before", anchorId: "m_text000001" });
+    expect(tree(doc)[1]).toEqual([["m_hero000001"], ["m_cta0000001", "m_text000001"]]);
+    doc = docOps.drop(doc, { kind: "move", id: "m_text000001" }, { kind: "before", anchorId: "m_header0001" });
+    expect(tree(doc)).toEqual(["m_text000001", "m_header0001", [["m_hero000001"], ["m_cta0000001"]], "m_footer0001"]);
+    expect((doc.modules[0].settings.padding as { left: number }).left).toBeGreaterThan(0);
+  });
+
+  it("refuses drops that are not allowed and ignores drops that change nothing", () => {
+    const doc = docOps.drop(start(), { kind: "new", type: "hero" }, { kind: "split", anchorId: "m_text000001", side: "left" }, "m_hero000001");
+    const rowId = doc.modules[1].id;
+    expect(docOps.drop(doc, { kind: "new", type: "columns" }, { kind: "end", parentId: rowId, column: 0 })).toBe(doc);
+    expect(docOps.drop(doc, { kind: "move", id: rowId }, { kind: "split", anchorId: "m_header0001", side: "left" })).toBe(doc);
+    expect(docOps.drop(doc, { kind: "new", type: "cta" }, { kind: "split", anchorId: rowId, side: "left" })).toBe(doc);
+    expect(docOps.drop(doc, { kind: "move", id: "m_header0001" }, { kind: "before", anchorId: "m_header0001" })).toBe(doc);
+    expect(docOps.drop(doc, { kind: "move", id: "m_header0001" }, { kind: "before", anchorId: rowId })).toBe(doc);
+    expect(docOps.drop(doc, { kind: "move", id: "m_missing0001" }, { kind: "end", parentId: null })).toBe(doc);
+  });
+});
+
+describe("drop targets on the preview", () => {
+  const content = { left: 40, top: 24, right: 640, bottom: 24 };
+  const rows = [
+    { id: "a", box: { left: 40, top: 24, right: 640, bottom: 124 } },
+    {
+      id: "row",
+      box: { left: 40, top: 124, right: 640, bottom: 324 },
+      columns: [
+        { box: { left: 80, top: 140, right: 245, bottom: 308 }, blocks: [{ id: "c1", box: { left: 80, top: 140, right: 245, bottom: 220 } }] },
+        { box: { left: 269, top: 140, right: 600, bottom: 308 }, blocks: [] },
+      ],
+    },
+    { id: "z", box: { left: 40, top: 324, right: 640, bottom: 400 } },
+  ];
+  const at = (x: number, y: number, o: { draggingRow?: boolean; movingId?: string } = {}) => resolveDrop(rows, x, y, { draggingRow: false, content, ...o });
+
+  it("inserts between rows in the middle of a block and splits at its sides", () => {
+    expect(at(340, 40).target).toEqual({ kind: "before", anchorId: "a" });
+    expect(at(340, 110).target).toEqual({ kind: "before", anchorId: "row" });
+    expect(at(60, 70)).toMatchObject({ target: { kind: "split", anchorId: "a", side: "left" }, mark: "line-v" });
+    expect(at(620, 70).target).toEqual({ kind: "split", anchorId: "a", side: "right" });
+    // A block cannot be split against itself, and rows never split.
+    expect(at(60, 70, { movingId: "a" }).target).toEqual({ kind: "before", anchorId: "a" });
+    expect(at(60, 70, { draggingRow: true }).target.kind).toBe("before");
+    expect(at(340, 390).target).toEqual({ kind: "end", parentId: null });
+    expect(at(340, 900).target).toEqual({ kind: "end", parentId: null });
+  });
+
+  it("targets columns inside a row, and the row's edges for between-row drops", () => {
+    expect(at(100, 160).target).toEqual({ kind: "before", anchorId: "c1" });
+    expect(at(100, 260).target).toEqual({ kind: "end", parentId: "row", column: 0 });
+    expect(at(400, 200)).toMatchObject({ target: { kind: "end", parentId: "row", column: 1 }, mark: "fill", label: "Column 2" });
+    expect(at(400, 128).target).toEqual({ kind: "before", anchorId: "row" });
+    expect(at(400, 320).target).toEqual({ kind: "before", anchorId: "z" });
+    expect(at(400, 200, { draggingRow: true }).target).toEqual({ kind: "before", anchorId: "row" });
+  });
+
+  it("offers the whole content area when the email is empty", () => {
+    expect(resolveDrop([], 300, 60, { draggingRow: false, content })).toMatchObject({ target: { kind: "end", parentId: null }, mark: "fill" });
   });
 });
