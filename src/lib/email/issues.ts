@@ -2,7 +2,7 @@
  * Unresolved-content detection. These are warnings shown in the editor and
  * before export; they do not block export (the user decides).
  */
-import type { EmailDocument } from "./document";
+import { allModules, COLUMNS_TYPE, type EmailDocument } from "./document";
 import type { ImageValue } from "./fields";
 import { selectedNetworks } from "./modules/social";
 import { getModule } from "./registry";
@@ -23,7 +23,21 @@ export function findContentIssues(doc: EmailDocument): ContentIssue[] {
   else if (PLACEHOLDER_RE.test(doc.subject)) issues.push({ moduleId: null, field: "subject", severity: "warning", message: "Subject contains a placeholder." });
   if (doc.modules.length === 0) issues.push({ moduleId: null, field: "modules", severity: "error", message: "The email has no modules." });
 
-  for (const m of doc.modules) {
+  const rows = doc.modules.filter((m) => m.type === COLUMNS_TYPE);
+  if (rows.length) {
+    issues.push({
+      moduleId: rows[0].id,
+      field: "layout",
+      severity: "warning",
+      message: "This email uses columns. Outlook templates are not responsive: on phones the columns stay side by side and the email is shrunk or needs sideways scrolling.",
+    });
+  }
+  for (const row of rows) {
+    const empty = (row.columns ?? []).filter((c) => c.blocks.length === 0).length;
+    if (empty) issues.push({ moduleId: row.id, field: "columns", severity: "warning", message: `Columns: ${empty} empty column${empty === 1 ? "" : "s"}.` });
+  }
+
+  for (const m of allModules(doc)) {
     const def = getModule(m.type);
     if (!def) continue;
     const content = m.content as Record<string, unknown>;

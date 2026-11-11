@@ -12,6 +12,10 @@ export const AiOperationSchema = z.object({
   moduleId: z.string().nullable(),
   index: z.number().int().nullable(),
   toIndex: z.number().int().nullable(),
+  /** add_module / move_module: id or ref of the columns row to place the block in; null = top level. */
+  parentId: z.string().nullable(),
+  /** Column inside parentId, 0 = leftmost; null when parentId is null. */
+  column: z.number().int().nullable(),
   ref: z.string().nullable(),
   subject: z.string().nullable(),
   contentJson: z.string().nullable(),
@@ -47,11 +51,11 @@ export function toOperations(output: AiOutput): { ok: true; operations: Operatio
       const settings = parseObjectJson(o.settingsJson, `operations[${i}].settingsJson`);
       const candidate =
         o.op === "add_module"
-          ? { op: o.op, moduleType: o.moduleType, index: o.index, ref: o.ref, content, settings }
+          ? { op: o.op, moduleType: o.moduleType, index: o.index, ref: o.ref, content, settings, parentId: o.parentId, column: o.column }
           : o.op === "update_module"
             ? { op: o.op, moduleId: o.moduleId, content, settings }
             : o.op === "move_module"
-              ? { op: o.op, moduleId: o.moduleId, toIndex: o.toIndex }
+              ? { op: o.op, moduleId: o.moduleId, toIndex: o.toIndex, parentId: o.parentId, column: o.column }
               : o.op === "remove_module"
                 ? { op: o.op, moduleId: o.moduleId }
                 : { op: o.op, subject: o.subject };

@@ -8,9 +8,10 @@
  */
 import { z } from "zod";
 import { requireBrand } from "./brands";
-import { newModuleId, type EmailDocument, type ModuleInstance } from "./document";
+import { COLUMNS_TYPE, MAX_BLOCKS_PER_COLUMN, locateModule, newModuleId, type EmailDocument, type ModuleInstance, type ModuleLocation } from "./document";
 import type { ImageSource, ImageValue } from "./fields";
-import { createModuleInstance, getModule, moduleSupportsBrand, validateDocument } from "./registry";
+import { COLUMN_LAYOUTS, type ColumnLayout } from "./modules/columns";
+import { createModuleInstance, fitToColumn, getModule, moduleSupportsBrand, reflowColumns, validateDocument } from "./registry";
 import { liteToRichText, RichTextSchema } from "./richtext";
 
 export const OperationSchema = z.discriminatedUnion("op", [
@@ -23,6 +24,10 @@ export const OperationSchema = z.discriminatedUnion("op", [
     ref: z.string().max(40).nullable(),
     content: z.record(z.string(), z.unknown()).nullable(),
     settings: z.record(z.string(), z.unknown()).nullable(),
+    /** Id or ref of a columns row to add into; omitted/null = top level. `index` is then the position within that column. */
+    parentId: z.string().nullish(),
+    /** Column of the parent row, 0 = leftmost. */
+    column: z.number().int().min(0).max(2).nullish(),
   }),
   z.object({
     op: z.literal("update_module"),
@@ -30,7 +35,14 @@ export const OperationSchema = z.discriminatedUnion("op", [
     content: z.record(z.string(), z.unknown()).nullable(),
     settings: z.record(z.string(), z.unknown()).nullable(),
   }),
-  z.object({ op: z.literal("move_module"), moduleId: z.string(), toIndex: z.number().int().min(0) }),
+  z.object({
+    op: z.literal("move_module"),
+    moduleId: z.string(),
+    toIndex: z.number().int().min(0),
+    /** Move into this columns row (id or ref); omitted/null = top level. */
+    parentId: z.string().nullish(),
+    column: z.number().int().min(0).max(2).nullish(),
+  }),
   z.object({ op: z.literal("remove_module"), moduleId: z.string() }),
   z.object({ op: z.literal("set_subject"), subject: z.string().max(300) }),
 ]);
@@ -131,7 +143,39 @@ export function applyOperations(doc: EmailDocument, ops: Operation[], idFactory:
   const refs = new Map<string, string>();
   const touched = new Set<string>();
   const resolveId = (id: string) => refs.get(id) ?? id;
-  const indexOf = (id: string) => working.modules.findIndex((m) => m.id === resolveId(id));
+  const locate = (id: string) => locateModule(working, resolveId(id));
+  /** The (mutable) list a location points into: the top level, or one column of a row. */
+  const listAt = (loc: ModuleLocation): ModuleInstance[] =>
+    loc.parentId === null ? working.modules : working.modules.find((m) => m.id === loc.parentId)!.columns![loc.column].blocks;
+  /** Resolves "parentId + column" to that column's block list, recording an error if it is not a valid target. */
+  const columnList = (parentId: string, column: number | null | undefined, opIndex: number): ModuleInstance[] | null => {
+    const parent = working.modules.find((m) => m.id === resolveId(parentId));
+    if (!parent?.columns) {
+      errors.push({ opIndex, message: `parentId "${parentId}" is not a columns module` });
+      return null;
+    }
+    const col = column ?? 0;
+    if (col >= parent.columns.length) {
+      errors.push({ opIndex, message: `Column ${col} does not exist; "${parentId}" has columns 0-${parent.columns.length - 1}` });
+      return null;
+    }
+    if (parent.columns[col].blocks.length >= MAX_BLOCKS_PER_COLUMN) {
+      errors.push({ opIndex, message: `Column ${col} of "${parentId}" is full` });
+      return null;
+    }
+    touched.add(parent.id);
+    return parent.columns[col].blocks;
+  };
+  /** Applies content/settings patches, keeping a columns row's column count in step with its layout. */
+  const patch = (m: ModuleInstance, content: Record<string, unknown> | null, settings: Record<string, unknown> | null, opIndex: number): ModuleInstance => {
+    let next = m;
+    if (content) next = { ...next, content: patchContent(next, content, opIndex, errors, images) };
+    if (settings) next = { ...next, settings: patchSettings(next, settings, opIndex, errors) };
+    const layout = next.settings.layout as ColumnLayout | undefined;
+    // An unknown layout value is left alone here and reported by document validation below.
+    if (next.type === COLUMNS_TYPE && typeof layout === "string" && layout in COLUMN_LAYOUTS) next = { ...next, columns: reflowColumns(next.columns ?? [], layout) };
+    return next;
+  };
 
   ops.forEach((op, opIndex) => {
     switch (op.op) {
@@ -141,47 +185,58 @@ export function applyOperations(doc: EmailDocument, ops: Operation[], idFactory:
           errors.push({ opIndex, message: `Module type "${op.moduleType}" is not available for brand ${brand.id}` });
           return;
         }
+        const nested = !!op.parentId;
+        if (nested && op.moduleType === COLUMNS_TYPE) {
+          errors.push({ opIndex, message: "Columns cannot be placed inside columns" });
+          return;
+        }
+        const list = nested ? columnList(op.parentId!, op.column, opIndex) : working.modules;
+        if (!list) return;
         const id = idFactory();
         if (op.ref) refs.set(op.ref, id);
-        let instance = createModuleInstance(op.moduleType, brand, id);
-        if (op.content) instance = { ...instance, content: patchContent(instance, op.content, opIndex, errors, images) };
-        if (op.settings) instance = { ...instance, settings: patchSettings(instance, op.settings, opIndex, errors) };
-        const at = op.index === null ? working.modules.length : Math.min(op.index, working.modules.length);
-        working.modules.splice(at, 0, instance);
+        const fresh = createModuleInstance(op.moduleType, brand, id);
+        const instance = patch(nested ? fitToColumn(fresh) : fresh, op.content, op.settings, opIndex);
+        list.splice(op.index === null ? list.length : Math.min(op.index, list.length), 0, instance);
         touched.add(id);
         return;
       }
       case "update_module": {
-        const i = indexOf(op.moduleId);
-        if (i < 0) {
+        const loc = locate(op.moduleId);
+        if (!loc) {
           errors.push({ opIndex, message: `No module with id "${op.moduleId}"` });
           return;
         }
-        let m = working.modules[i];
-        if (op.content) m = { ...m, content: patchContent(m, op.content, opIndex, errors, images) };
-        if (op.settings) m = { ...m, settings: patchSettings(m, op.settings, opIndex, errors) };
-        working.modules[i] = m;
-        touched.add(m.id);
+        const list = listAt(loc);
+        list[loc.index] = patch(list[loc.index], op.content, op.settings, opIndex);
+        touched.add(list[loc.index].id);
         return;
       }
       case "move_module": {
-        const i = indexOf(op.moduleId);
-        if (i < 0) {
+        const loc = locate(op.moduleId);
+        if (!loc) {
           errors.push({ opIndex, message: `No module with id "${op.moduleId}"` });
           return;
         }
-        const [m] = working.modules.splice(i, 1);
-        working.modules.splice(Math.min(op.toIndex, working.modules.length), 0, m);
+        const from = listAt(loc);
+        const m = from[loc.index];
+        if (op.parentId && m.type === COLUMNS_TYPE) {
+          errors.push({ opIndex, message: "Columns cannot be placed inside columns" });
+          return;
+        }
+        from.splice(loc.index, 1);
+        const to = op.parentId ? columnList(op.parentId, op.column, opIndex) : working.modules;
+        if (!to) return;
+        to.splice(Math.min(op.toIndex, to.length), 0, op.parentId && loc.parentId === null ? fitToColumn(m) : m);
         touched.add(m.id);
         return;
       }
       case "remove_module": {
-        const i = indexOf(op.moduleId);
-        if (i < 0) {
+        const loc = locate(op.moduleId);
+        if (!loc) {
           errors.push({ opIndex, message: `No module with id "${op.moduleId}"` });
           return;
         }
-        working.modules.splice(i, 1);
+        listAt(loc).splice(loc.index, 1);
         return;
       }
       case "set_subject":

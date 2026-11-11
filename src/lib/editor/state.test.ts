@@ -89,3 +89,35 @@ describe("stale AI results", () => {
     expect(res).toMatchObject({ kind: "stale", rebased: null });
   });
 });
+
+describe("columns in the editor", () => {
+  it("adds a row, fills its columns, moves and duplicates blocks, and keeps content when the layout changes", () => {
+    let doc = { ...sampleEmailDocument("harbor-pine"), modules: [] as ReturnType<typeof sampleEmailDocument>["modules"] };
+    doc = docOps.add(doc, "columns", { parentId: null, index: null }, "m_row0000001", { layout: "1-1-1" });
+    expect(doc.modules[0].columns).toHaveLength(3);
+    doc = docOps.add(doc, "text", { parentId: "m_row0000001", column: 2, index: null }, "m_text000001");
+    doc = docOps.add(doc, "cta", { parentId: "m_row0000001", column: 0, index: null }, "m_cta0000001");
+    // Rows cannot go inside rows.
+    expect(docOps.add(doc, "columns", { parentId: "m_row0000001", column: 0, index: null })).toBe(doc);
+
+    doc = docOps.moveTo(doc, "m_cta0000001", { parentId: "m_row0000001", column: 2, index: 0 });
+    expect(doc.modules[0].columns!.map((c) => c.blocks.map((b) => b.id))).toEqual([[], [], ["m_cta0000001", "m_text000001"]]);
+
+    doc = docOps.setSetting(doc, "m_row0000001", "layout", "1-2");
+    expect(doc.modules[0].columns!.map((c) => c.blocks.length)).toEqual([0, 2]);
+
+    const copy = docOps.duplicate(doc, "m_row0000001", "m_row0000002");
+    const ids = copy.modules.flatMap((m) => [m.id, ...m.columns!.flatMap((c) => c.blocks.map((b) => b.id))]);
+    expect(new Set(ids).size).toBe(6);
+
+    doc = docOps.moveTo(doc, "m_text000001", { parentId: null, index: 0 });
+    expect(doc.modules.map((m) => m.type)).toEqual(["text", "columns"]);
+    expect(docOps.remove(doc, "m_cta0000001").modules[1].columns![1].blocks).toHaveLength(0);
+
+    let s = initialEditorState(doc);
+    s = editorReducer(s, { type: "select", id: "m_cta0000001" });
+    s = editorReducer(s, { type: "change", update: (d) => docOps.setContent(d, "m_cta0000001", "label", "Go") });
+    expect(s.selectedId).toBe("m_cta0000001");
+    expect(s.doc.modules[1].columns![1].blocks[0].content.label).toBe("Go");
+  });
+});

@@ -4,7 +4,7 @@
  * current document. Module HTML is never sent.
  */
 import type { Brand } from "@/lib/email/brands";
-import type { EmailDocument } from "@/lib/email/document";
+import type { EmailDocument, ModuleInstance } from "@/lib/email/document";
 import type { ImageValue } from "@/lib/email/fields";
 import { getModule, modulesForBrand } from "@/lib/email/registry";
 import { richTextToLite, type RichText } from "@/lib/email/richtext";
@@ -48,23 +48,29 @@ export function moduleCatalog(brand: Brand) {
   });
 }
 
-export function documentView(doc: EmailDocument) {
+function moduleView(m: ModuleInstance, index: number): Record<string, unknown> {
+  const def = getModule(m.type);
+  const content: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(m.content)) {
+    const f = def?.contentFields.find((x) => x.key === k);
+    if (f?.kind === "richtext") content[k] = richTextToLite(v as RichText);
+    else if (f?.kind === "image") {
+      const img = v as ImageValue;
+      content[k] = { hasImage: !!img.src, alt: img.alt, width: img.width, ...(img.linkUrl !== undefined ? { linkUrl: img.linkUrl } : {}) };
+    } else content[k] = v;
+  }
   return {
-    subject: doc.subject,
-    modules: doc.modules.map((m, index) => {
-      const def = getModule(m.type);
-      const content: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(m.content)) {
-        const f = def?.contentFields.find((x) => x.key === k);
-        if (f?.kind === "richtext") content[k] = richTextToLite(v as RichText);
-        else if (f?.kind === "image") {
-          const img = v as ImageValue;
-          content[k] = { hasImage: !!img.src, alt: img.alt, width: img.width, ...(img.linkUrl !== undefined ? { linkUrl: img.linkUrl } : {}) };
-        } else content[k] = v;
-      }
-      return { index, id: m.id, type: m.type, content, settings: m.settings };
-    }),
+    index,
+    id: m.id,
+    type: m.type,
+    content,
+    settings: m.settings,
+    ...(m.columns ? { columns: m.columns.map((c, column) => ({ column, blocks: c.blocks.map(moduleView) })) } : {}),
   };
+}
+
+export function documentView(doc: EmailDocument) {
+  return { subject: doc.subject, modules: doc.modules.map(moduleView) };
 }
 
 export function systemPrompt(brand: Brand): string {
@@ -79,14 +85,17 @@ Module catalogue (the only modules you may use):
 ${JSON.stringify(moduleCatalog(brand), null, 1)}
 
 Operations
-- add_module: moduleType (from the catalogue), index (insert position at that moment, null = end), ref (a short handle like "new-cta" so later operations can reference it via moduleId), contentJson / settingsJson: JSON object strings with only the fields you want to differ from defaults, or null.
+- add_module: moduleType (from the catalogue), index (insert position at that moment, null = end), ref (a short handle like "new-cta" so later operations can reference it via moduleId or parentId), contentJson / settingsJson: JSON object strings with only the fields you want to differ from defaults, or null. To put a block inside a columns row, set parentId to that row's id or ref and column to 0, 1 or 2; index is then the position within that column. Otherwise parentId and column are null.
 - update_module: moduleId, contentJson and/or settingsJson containing ONLY the fields to change. Omit everything you are not changing.
-- move_module: moduleId, toIndex (final position).
+- move_module: moduleId, toIndex (final position). Set parentId and column to move it into a columns row; leave them null to move it to the top level.
 - remove_module: moduleId.
 - set_subject: subject.
 Unused fields in an operation must be null.
 
 Rich text strings use markdown-lite: blank line between paragraphs, **bold**, *italic*, [label](https://url), lines starting with "- " form a bullet list.
+
+Layout
+- Modules stack top to bottom at full width. For side-by-side content, add a "columns" module (layouts: 1-1, 1-2, 2-1, 1-1-1), then add blocks into its columns. Columns cannot be nested, and a columns module with an empty column is a mistake.
 
 Rules
 - Make the smallest set of operations that satisfies the request. Never rewrite modules or fields the user did not ask about; untouched content must stay exactly as it is.

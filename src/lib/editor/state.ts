@@ -1,8 +1,9 @@
 /** Pure editor state: document, undo/redo history, selection, and an edit version counter. */
 import { requireBrand } from "@/lib/email/brands";
-import { newModuleId, type EmailDocument, type ModuleInstance } from "@/lib/email/document";
+import { COLUMNS_TYPE, MAX_BLOCKS_PER_COLUMN, findModule, locateModule, newModuleId, type EmailDocument, type ModuleInstance } from "@/lib/email/document";
+import type { ColumnLayout } from "@/lib/email/modules/columns";
 import { applyOperations, type Operation, type AvailableImage } from "@/lib/email/operations";
-import { createModuleInstance, getModule } from "@/lib/email/registry";
+import { createModuleInstance, fitToColumn, getModule, reflowColumns } from "@/lib/email/registry";
 
 const HISTORY_LIMIT = 100;
 const COALESCE_MS = 1000;
@@ -41,7 +42,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const now = action.now ?? Date.now();
       const coalesce = !!action.coalesceKey && action.coalesceKey === state.lastCoalesceKey && now - state.lastChangeAt < COALESCE_MS;
       const past = coalesce ? state.past : [...state.past, state.doc].slice(-HISTORY_LIMIT);
-      const selectedId = action.select !== undefined ? action.select : next.modules.some((m) => m.id === state.selectedId) ? state.selectedId : null;
+      const selectedId = action.select !== undefined ? action.select : state.selectedId && findModule(next, state.selectedId) ? state.selectedId : null;
       return { ...state, doc: next, past, future: [], version: state.version + 1, selectedId, lastCoalesceKey: action.coalesceKey ?? null, lastChangeAt: now };
     }
     case "undo": {
@@ -59,48 +60,99 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
 /* ---------- Document transforms used by the editor UI ---------- */
 
+/** Where to put a module: the top level, or one column of a columns row. `index` null = end. */
+export type Destination = { parentId: null; index: number | null } | { parentId: string; column: number; index: number | null };
+
+/** Applies fn to the module with this id, wherever it sits. */
 const mapModule = (doc: EmailDocument, id: string, fn: (m: ModuleInstance) => ModuleInstance): EmailDocument => ({
   ...doc,
-  modules: doc.modules.map((m) => (m.id === id ? fn(m) : m)),
+  modules: doc.modules.map((m) =>
+    m.id === id ? fn(m) : m.columns ? { ...m, columns: m.columns.map((c) => ({ blocks: c.blocks.map((b) => (b.id === id ? fn(b) : b)) })) } : m,
+  ),
 });
 
+const without = (doc: EmailDocument, id: string): EmailDocument => ({
+  ...doc,
+  modules: doc.modules.filter((m) => m.id !== id).map((m) => (m.columns ? { ...m, columns: m.columns.map((c) => ({ blocks: c.blocks.filter((b) => b.id !== id) })) } : m)),
+});
+
+const insert = (doc: EmailDocument, m: ModuleInstance, dest: Destination): EmailDocument => {
+  const put = (list: ModuleInstance[], item: ModuleInstance) => {
+    const next = [...list];
+    next.splice(dest.index === null ? next.length : Math.max(0, Math.min(dest.index, next.length)), 0, item);
+    return next;
+  };
+  if (dest.parentId === null) return { ...doc, modules: put(doc.modules, m) };
+  return {
+    ...doc,
+    modules: doc.modules.map((row) =>
+      row.id === dest.parentId && row.columns ? { ...row, columns: row.columns.map((c, i) => (i === dest.column ? { blocks: put(c.blocks, fitToColumn(m)) } : c)) } : row,
+    ),
+  };
+};
+
+/** True when dest names a real place this module may go (rows cannot nest; columns have a size limit). */
+export function canPlace(doc: EmailDocument, type: string, dest: Destination): boolean {
+  if (dest.parentId === null) return true;
+  const row = doc.modules.find((m) => m.id === dest.parentId);
+  const col = row?.columns?.[dest.column];
+  return !!col && type !== COLUMNS_TYPE && col.blocks.length < MAX_BLOCKS_PER_COLUMN;
+}
+
 export const docOps = {
-  add(doc: EmailDocument, type: string, index: number | null, id = newModuleId()): EmailDocument {
-    const m = createModuleInstance(type, requireBrand(doc.brandId), id);
-    const modules = [...doc.modules];
-    modules.splice(index ?? modules.length, 0, m);
-    return { ...doc, modules };
+  add(doc: EmailDocument, type: string, dest: Destination, id = newModuleId(), settings?: Record<string, unknown>): EmailDocument {
+    if (!canPlace(doc, type, dest)) return doc;
+    let m = createModuleInstance(type, requireBrand(doc.brandId), id);
+    if (settings) m = { ...m, settings: { ...m.settings, ...settings } };
+    const layout = m.settings.layout as ColumnLayout | undefined;
+    if (m.type === COLUMNS_TYPE && layout) m = { ...m, columns: reflowColumns(m.columns ?? [], layout) };
+    return insert(doc, m, dest);
   },
   duplicate(doc: EmailDocument, id: string, newId = newModuleId()): EmailDocument {
-    const i = doc.modules.findIndex((m) => m.id === id);
-    if (i < 0) return doc;
-    const copy = { ...structuredClone(doc.modules[i]), id: newId };
-    const modules = [...doc.modules];
-    modules.splice(i + 1, 0, copy);
-    return { ...doc, modules };
+    const loc = locateModule(doc, id);
+    const original = findModule(doc, id);
+    if (!loc || !original) return doc;
+    const copy: ModuleInstance = {
+      ...structuredClone(original),
+      id: newId,
+      ...(original.columns ? { columns: original.columns.map((c) => ({ blocks: c.blocks.map((b) => ({ ...structuredClone(b), id: newModuleId() })) })) } : {}),
+    };
+    const dest: Destination = loc.parentId === null ? { parentId: null, index: loc.index + 1 } : { parentId: loc.parentId, column: loc.column, index: loc.index + 1 };
+    return canPlace(doc, copy.type, dest) ? insert(doc, copy, dest) : doc;
   },
   remove(doc: EmailDocument, id: string): EmailDocument {
-    return { ...doc, modules: doc.modules.filter((m) => m.id !== id) };
+    return without(doc, id);
   },
+  /** Moves a module to a destination. `dest.index` is the position in the destination list after the module is lifted out. */
+  moveTo(doc: EmailDocument, id: string, dest: Destination): EmailDocument {
+    const m = findModule(doc, id);
+    if (!m || dest.parentId === id) return doc;
+    const lifted = without(doc, id);
+    return canPlace(lifted, m.type, dest) ? insert(lifted, m, dest) : doc;
+  },
+  /** Reorders within the top level. */
   move(doc: EmailDocument, id: string, toIndex: number): EmailDocument {
     const from = doc.modules.findIndex((m) => m.id === id);
     if (from < 0 || from === toIndex) return doc;
-    const modules = [...doc.modules];
-    const [m] = modules.splice(from, 1);
-    modules.splice(Math.max(0, Math.min(toIndex, modules.length)), 0, m);
-    return { ...doc, modules };
+    return docOps.moveTo(doc, id, { parentId: null, index: toIndex });
   },
   setContent(doc: EmailDocument, id: string, key: string, value: unknown): EmailDocument {
     return mapModule(doc, id, (m) => ({ ...m, content: { ...m.content, [key]: value } }));
   },
   setSetting(doc: EmailDocument, id: string, key: string, value: unknown): EmailDocument {
-    return mapModule(doc, id, (m) => ({ ...m, settings: { ...m.settings, [key]: value } }));
+    return mapModule(doc, id, (m) => {
+      const next = { ...m, settings: { ...m.settings, [key]: value } };
+      // Changing a row's layout re-shapes its columns; content is kept.
+      return m.type === COLUMNS_TYPE && key === "layout" ? { ...next, columns: reflowColumns(m.columns ?? [], value as ColumnLayout) } : next;
+    });
   },
-  /** Restores brand/module default settings; content is kept. */
+  /** Restores brand/module default settings; content (and a row's layout and blocks) is kept. */
   resetSettings(doc: EmailDocument, id: string): EmailDocument {
     return mapModule(doc, id, (m) => {
       const def = getModule(m.type);
-      return def ? { ...m, settings: structuredClone(def.defaults(requireBrand(doc.brandId)).settings) } : m;
+      if (!def) return m;
+      const defaults = structuredClone(def.defaults(requireBrand(doc.brandId)).settings) as Record<string, unknown>;
+      return { ...m, settings: m.type === COLUMNS_TYPE ? { ...defaults, layout: m.settings.layout } : defaults };
     });
   },
   setField(doc: EmailDocument, key: "subject" | "title", value: string): EmailDocument {

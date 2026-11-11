@@ -6,9 +6,10 @@
  * explicit image dimensions, no classes/media queries/scripts/web fonts/flex/grid.
  */
 import { requireBrand } from "./brands";
-import type { EmailDocument } from "./document";
+import { allModules, type EmailDocument, type ModuleInstance } from "./document";
 import { escapeAttr, escapeHtml, safeColor } from "./html";
 import type { ImageSource } from "./fields";
+import type { Brand } from "./brands";
 import { getModule, rendererFor } from "./registry";
 import { richTextToPlain, type RichText } from "./richtext";
 import { TABLE_ATTRS } from "./modules/shared";
@@ -20,15 +21,16 @@ export interface RenderOptions {
   /** Adds data-module-id attributes so the preview can map clicks to modules. Never set for export. */
   annotate?: boolean;
   selectedModuleId?: string | null;
+  /** Preview only: these modules play a "drop into place" animation on this render, one after another. */
+  animateModuleIds?: string[];
 }
 
-/** Expects a document that already passed validateDocument(). */
-export function renderEmailHtml(doc: EmailDocument, opts: RenderOptions): string {
-  const brand = requireBrand(doc.brandId);
-  const pageBg = safeColor(brand.colors.pageBackground);
-  const contentBg = safeColor(brand.colors.contentBackground);
+/** A short overshoot-and-settle, with a highlight flash that fades. Preview only; never exported. */
+const DROP_KEYFRAMES =
+  "@keyframes otb-drop{0%{opacity:0;transform:translateY(-22px) scale(1.04);box-shadow:0 0 0 3px #2563eb,0 18px 40px rgba(37,99,235,.35)}55%{opacity:1;transform:translateY(3px) scale(.995);box-shadow:0 0 0 3px #2563eb,0 4px 10px rgba(37,99,235,.25)}100%{opacity:1;transform:none;box-shadow:0 0 0 0 rgba(37,99,235,0)}}@media (prefers-reduced-motion:reduce){[data-module-id]>td{animation:none!important}}";
 
-  const rows = doc.modules
+function renderModules(modules: ModuleInstance[], brand: Brand, opts: RenderOptions, contentWidth: number): string {
+  return modules
     .map((m) => {
       const def = getModule(m.type);
       if (!def) return "";
@@ -39,14 +41,26 @@ export function renderEmailHtml(doc: EmailDocument, opts: RenderOptions): string
         settings: m.settings,
         rowAttrs,
         resolveImage: opts.resolveImage,
-        contentWidth: CONTENT_WIDTH,
+        contentWidth,
+        renderColumn: (column, width) => renderModules(m.columns?.[column]?.blocks ?? [], brand, opts, width),
       });
     })
     .join("\n");
+}
+
+/** Expects a document that already passed validateDocument(). */
+export function renderEmailHtml(doc: EmailDocument, opts: RenderOptions): string {
+  const brand = requireBrand(doc.brandId);
+  const pageBg = safeColor(brand.colors.pageBackground);
+  const contentBg = safeColor(brand.colors.contentBackground);
+
+  const rows = renderModules(doc.modules, brand, opts, CONTENT_WIDTH);
 
   const previewStyle =
     opts.annotate
-      ? `<style>[data-module-id]{cursor:pointer}[data-module-id]:hover{outline:2px dashed #93c5fd;outline-offset:-2px}${
+      ? `<style>${DROP_KEYFRAMES}${(opts.animateModuleIds ?? [])
+          .map((id, i) => `[data-module-id="${escapeAttr(id)}"]>td{animation:otb-drop .42s cubic-bezier(.2,1.4,.4,1) ${Math.min(i, 12) * 70}ms both;position:relative}`)
+          .join("")}[data-module-id]{cursor:pointer}[data-module-id]:hover{outline:2px dashed #93c5fd;outline-offset:-2px}${
           opts.selectedModuleId ? `[data-module-id="${escapeAttr(opts.selectedModuleId)}"]{outline:2px solid #2563eb;outline-offset:-2px}` : ""
         }</style>`
       : "";
@@ -74,7 +88,7 @@ ${rows}
 
 export function renderEmailPlainText(doc: EmailDocument): string {
   const parts: string[] = [];
-  for (const m of doc.modules) {
+  for (const m of allModules(doc)) {
     const c = m.content as Record<string, unknown>;
     switch (m.type) {
       case "header":
@@ -111,7 +125,7 @@ export function collectImageSources(doc: EmailDocument): ImageSource[] {
     }
     for (const child of Object.values(o)) if (child && typeof child === "object") visit(child);
   };
-  for (const m of doc.modules) {
+  for (const m of allModules(doc)) {
     visit(m.content);
     out.push(...(getModule(m.type)?.images?.(m.content, m.settings) ?? []));
   }

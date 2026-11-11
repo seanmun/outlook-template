@@ -12,6 +12,8 @@ const op = (o: Partial<AiOutput["operations"][number]>): AiOutput["operations"][
   moduleId: null,
   index: null,
   toIndex: null,
+  parentId: null,
+  column: null,
   ref: null,
   subject: null,
   contentJson: null,

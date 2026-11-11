@@ -11,6 +11,8 @@ export interface RenderContext<C, S> {
   /** Returns the URL to place in an <img src>, or null when unresolved. */
   resolveImage: (src: ImageSource) => string | null;
   contentWidth: number;
+  /** For a columns row: the rendered rows of one column's blocks at the given width. Empty string otherwise. */
+  renderColumn: (column: number, width: number) => string;
 }
 
 export type ModuleRenderer<C, S> = (ctx: RenderContext<C, S>) => string;

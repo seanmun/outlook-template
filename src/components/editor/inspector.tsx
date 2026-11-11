@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { docOps } from "@/lib/editor/state";
 import type { Align, ImageValue, Padding } from "@/lib/email/fields";
+import { findModule, locateModule } from "@/lib/email/document";
 import { findContentIssues } from "@/lib/email/issues";
+import { columnWidths } from "@/lib/email/modules/columns";
 import { getModule } from "@/lib/email/registry";
 import type { RichText } from "@/lib/email/richtext";
 import { CONTENT_WIDTH } from "@/lib/email/render";
@@ -51,7 +53,7 @@ function EmailOverview() {
 
 export function Inspector() {
   const { state, change, dispatch, brand, assets, refreshAssets } = useEditor();
-  const m = state.doc.modules.find((x) => x.id === state.selectedId);
+  const m = state.selectedId ? findModule(state.doc, state.selectedId) : undefined;
   if (!m) return <EmailOverview />;
   const def = getModule(m.type);
   if (!def) return <div className="p-4 text-sm">Unknown module type “{m.type}”.</div>;
@@ -61,7 +63,11 @@ export function Inspector() {
   const setC = (key: string, value: unknown, coalesce = false) => change((d) => docOps.setContent(d, m.id, key, value), coalesce ? { coalesceKey: `${m.id}:c:${key}` } : undefined);
   const setS = (key: string, value: unknown, coalesce = false) => change((d) => docOps.setSetting(d, m.id, key, value), coalesce ? { coalesceKey: `${m.id}:s:${key}` } : undefined);
   const padding = settings.padding as Padding | undefined;
-  const innerWidth = CONTENT_WIDTH - (padding ? padding.left + padding.right : 0);
+  // A block inside a column can only be as wide as that column.
+  const at = locateModule(state.doc, m.id);
+  const row = at && at.parentId !== null ? state.doc.modules.find((x) => x.id === at.parentId) : undefined;
+  const available = row && at && at.parentId !== null ? columnWidths(row.settings as Parameters<typeof columnWidths>[0], CONTENT_WIDTH)[at.column] : CONTENT_WIDTH;
+  const innerWidth = available - (padding ? padding.left + padding.right : 0);
 
   return (
     <div className="space-y-4 p-4" key={m.id}>

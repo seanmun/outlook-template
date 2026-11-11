@@ -3,6 +3,8 @@ import { BRANDS } from "./brands";
 import { escapeHtml, sanitizeUrl } from "./html";
 import { findContentIssues } from "./issues";
 import { applyOperations, type Operation } from "./operations";
+import { allModules } from "./document";
+import { columnWidths } from "./modules/columns";
 import { MODULES, validateDocument } from "./registry";
 import { collectImageSources, renderEmailHtml } from "./render";
 import { liteToRichText, RichTextSchema } from "./richtext";
@@ -186,6 +188,81 @@ describe("divider and social icons", () => {
     expect(findContentIssues(doc).map((i) => i.message).join(" ")).toMatch(/no link set for x\./);
   });
 });
+
+describe("columns", () => {
+  const build = (layout = "1-2") => {
+    const base = { ...newEmailDocument("harbor-pine"), modules: [] };
+    const ops: Operation[] = [
+      { op: "add_module", moduleType: "columns", index: null, ref: "row", content: null, settings: { layout } },
+      { op: "add_module", moduleType: "hero", index: null, ref: null, content: null, settings: null, parentId: "row", column: 0 },
+      { op: "add_module", moduleType: "text", index: null, ref: "copy", content: { headline: "Side by side" }, settings: null, parentId: "row", column: 1 },
+      { op: "add_module", moduleType: "cta", index: null, ref: null, content: null, settings: null, parentId: "row", column: 1 },
+    ];
+    const r = applyOperations(base, ops, ids);
+    if (!r.ok) throw new Error(JSON.stringify(r.errors));
+    return r.doc;
+  };
+
+  it("places blocks in columns and renders fixed-width cells that fill the row", () => {
+    const doc = build();
+    const row = doc.modules[0];
+    expect(row.columns!.map((c) => c.blocks.map((b) => b.type))).toEqual([["hero"], ["text", "cta"]]);
+    // Blocks in a column give up their full-width side padding.
+    expect(row.columns![1].blocks[0].settings.padding).toMatchObject({ left: 0, right: 0 });
+    expect(columnWidths(row.settings as Parameters<typeof columnWidths>[0], 600)).toEqual([165, 331]);
+    const html = renderEmailHtml(doc, { resolveImage: resolve, annotate: true });
+    expect(html).toContain('<td width="165" valign="top"');
+    expect(html).toContain('<td width="331" valign="top"');
+    expect((html.match(/data-module-id=/g) ?? []).length).toBe(4);
+    expect(html).not.toMatch(/display:\s*(flex|grid)/);
+  });
+
+  it("keeps every block when the layout changes", () => {
+    const doc = build("1-1-1");
+    const row = doc.modules[0];
+    const narrowed = applyOperations(doc, [{ op: "update_module", moduleId: row.id, content: null, settings: { layout: "1-1" } }], ids);
+    expect(narrowed.ok).toBe(true);
+    if (!narrowed.ok) return;
+    expect(narrowed.doc.modules[0].columns!.map((c) => c.blocks.length)).toEqual([1, 2]);
+    expect(allModules(narrowed.doc)).toHaveLength(4);
+  });
+
+  it("rejects nested rows, bad columns, and a column count that does not match the layout", () => {
+    const doc = build();
+    const row = doc.modules[0];
+    const bad: Operation[] = [
+      { op: "add_module", moduleType: "columns", index: null, ref: null, content: null, settings: null, parentId: row.id, column: 0 },
+      { op: "add_module", moduleType: "text", index: null, ref: null, content: null, settings: null, parentId: row.id, column: 2 },
+      { op: "add_module", moduleType: "text", index: null, ref: null, content: null, settings: null, parentId: row.columns![0].blocks[0].id, column: 0 },
+      { op: "move_module", moduleId: row.id, toIndex: 0, parentId: row.id, column: 0 },
+    ];
+    for (const op of bad) expect(applyOperations(doc, [op], ids).ok).toBe(false);
+    expect(validateDocument({ ...doc, modules: [{ ...row, columns: [row.columns![0]] }] }).ok).toBe(false);
+    expect(validateDocument({ ...doc, modules: [{ ...row.columns![1].blocks[0], columns: row.columns }] }).ok).toBe(false);
+  });
+
+  it("moves blocks between a column and the top level, and finds nested images and issues", () => {
+    const doc = build();
+    const row = doc.modules[0];
+    const cta = row.columns![1].blocks[1];
+    const out = applyOperations(doc, [{ op: "move_module", moduleId: cta.id, toIndex: 0 }], ids);
+    expect(out.ok && out.doc.modules.map((m) => m.type)).toEqual(["cta", "columns"]);
+    const text = createTextIn(doc);
+    expect(text).toBe("Side by side");
+    const messages = findContentIssues(doc).map((i) => i.message).join(" | ");
+    expect(messages).toMatch(/not responsive/);
+    expect(messages).toMatch(/Hero image: Image has not been uploaded|has not been uploaded/);
+    const withImage = applyOperations(doc, [{ op: "update_module", moduleId: row.columns![0].blocks[0].id, content: { image: { use: "img-1" } }, settings: null }], ids, [
+      { ref: "img-1", src: { kind: "asset", assetId: "abc" }, width: 1200, height: 600 },
+    ]);
+    expect(withImage.ok && collectImageSources(withImage.doc)).toEqual([{ kind: "asset", assetId: "abc" }]);
+    // The image is sized to its column, not the full email width.
+    if (withImage.ok) expect(renderEmailHtml(withImage.doc, { resolveImage: resolve })).toContain('width="165" height="83"');
+  });
+});
+
+const createTextIn = (doc: { modules: { columns?: { blocks: { type: string; content: Record<string, unknown> }[] }[] }[] }) =>
+  doc.modules[0].columns![1].blocks.find((b) => b.type === "text")!.content.headline;
 
 describe("operations (AI edits)", () => {
   const base = () => sampleEmailDocument("harbor-pine");
