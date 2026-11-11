@@ -52,7 +52,7 @@ export function ExampleGallery() {
   }
 
   return (
-    <section aria-labelledby="examples-heading">
+    <section aria-labelledby="examples-heading" className="scroll-mt-6">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 id="examples-heading" className="font-[family-name:var(--font-display)] text-2xl leading-none text-neutral-900 uppercase">

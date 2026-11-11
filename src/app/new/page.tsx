@@ -1,5 +1,6 @@
 "use client";
 import { AppHeader, DemoBanner } from "@/components/app-header";
+import { SiteFooter } from "@/components/site-footer";
 import { Workspace } from "@/components/workspace";
 import { useConfig } from "@/lib/client/config";
 
@@ -11,6 +12,7 @@ export default function NewEmailPage() {
       <DemoBanner />
       <AppHeader />
       <main className="mx-auto w-full max-w-4xl flex-1 space-y-8 p-6">{ready ? <Workspace /> : null}</main>
+      <SiteFooter />
     </div>
   );
 }
