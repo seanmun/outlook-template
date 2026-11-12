@@ -43,7 +43,7 @@ export function OutlookNoTicker() {
             href={feature.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded bg-neutral-800 px-1.5 py-0.5 font-mono text-red-400 underline-offset-4 hover:underline motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-300"
+            className="bg-neutral-800 px-1.5 py-0.5 font-mono text-red-400 underline-offset-4 hover:underline motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-300"
           >
             {feature.title}
           </a>
@@ -52,7 +52,7 @@ export function OutlookNoTicker() {
         <span
           key={`a-${step}`}
           aria-hidden
-          className="shrink-0 -rotate-6 self-start rounded-md border-4 border-red-600 px-3 py-0.5 font-[family-name:var(--font-display)] text-4xl leading-none text-red-600 motion-safe:animate-in motion-safe:zoom-in-150 motion-safe:fade-in motion-safe:duration-200 motion-safe:delay-300 motion-safe:fill-mode-backwards sm:self-auto"
+          className="shrink-0 -rotate-6 self-start border-4 border-red-600 px-3 py-0.5 font-[family-name:var(--font-display)] text-4xl leading-none text-red-600 motion-safe:animate-in motion-safe:zoom-in-150 motion-safe:fade-in motion-safe:duration-200 motion-safe:delay-300 motion-safe:fill-mode-backwards sm:self-auto"
         >
           NO.
         </span>

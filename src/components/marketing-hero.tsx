@@ -14,7 +14,7 @@ const STEPS = [
 function Part({ xray, tag, className, children }: { xray: boolean; tag: string; className?: string; children?: React.ReactNode }) {
   return (
     <div
-      className={`relative mt-1.5 rounded-md transition-all duration-300 ${className ?? ""} ${
+      className={`relative mt-1.5 transition-all duration-300 ${className ?? ""} ${
         xray ? "!translate-x-0 !bg-none !bg-transparent outline-1 outline-offset-0 outline-dashed outline-red-500" : "shadow-sm"
       }`}
     >
@@ -45,12 +45,12 @@ function EmailMock() {
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         onClick={() => setPinned((p) => !p)}
-        className={`block w-full cursor-pointer rounded-xl border p-3 text-left shadow-xl transition-all duration-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 ${
+        className={`block w-full cursor-pointer border p-3 text-left shadow-xl transition-all duration-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 ${
           xray ? "rotate-0 bg-neutral-950" : "rotate-2 bg-white"
         }`}
       >
         <div className="mb-1 flex items-center gap-1.5">
-          <span className={`flex h-3 min-w-0 flex-1 items-center overflow-hidden rounded px-1 font-mono text-[8px] whitespace-nowrap transition-colors ${xray ? "bg-neutral-800 text-red-400" : "bg-neutral-100 text-transparent"}`}>
+          <span className={`flex h-3 min-w-0 flex-1 items-center overflow-hidden px-1 font-mono text-[8px] whitespace-nowrap transition-colors ${xray ? "bg-neutral-800 text-red-400" : "bg-neutral-100 text-transparent"}`}>
             &lt;table width=&quot;600&quot; cellpadding=&quot;0&quot;&gt;
           </span>
           {/* Windows-style window buttons: minimise, maximise, close. */}
@@ -60,22 +60,22 @@ function EmailMock() {
             <span className="relative size-2 before:absolute before:top-1/2 before:left-0 before:h-px before:w-full before:rotate-45 before:bg-current after:absolute after:top-1/2 after:left-0 after:h-px after:w-full after:-rotate-45 after:bg-current" />
           </span>
         </div>
-        <div className={`rounded-md p-0.5 transition-all duration-300 ${xray ? "outline-1 outline-dashed outline-red-500/60" : ""}`}>
+        <div className={` p-0.5 transition-all duration-300 ${xray ? "outline-1 outline-dashed outline-red-500/60" : ""}`}>
           <Part xray={xray} tag={'<tr><td bgcolor="#171717"><table><tr><td>'} className="!mt-0 flex h-8 items-center justify-center bg-neutral-900">
             <span className="font-[family-name:var(--font-display)] text-[10px] tracking-wider text-white">YOUR BRAND</span>
           </Part>
           <Part xray={xray} tag={'<tr><td><img width="600" height="260" style="display:block">'} className="h-20 -translate-x-1 bg-gradient-to-br from-sky-600 via-teal-500 to-emerald-400" />
           <Part xray={xray} tag={'<tr><td style="padding:28px 40px"><h1 style="margin:0"><p style="margin:0 0 14px 0">'} className="bg-neutral-50">
             <div className="space-y-1.5 p-2">
-              <div className="h-2.5 w-2/3 rounded bg-neutral-800" />
-              <div className="h-1.5 w-full rounded bg-neutral-300" />
-              <div className="h-1.5 w-11/12 rounded bg-neutral-300" />
-              <div className="h-1.5 w-3/4 rounded bg-neutral-300" />
+              <div className="h-2.5 w-2/3 bg-neutral-800" />
+              <div className="h-1.5 w-full bg-neutral-300" />
+              <div className="h-1.5 w-11/12 bg-neutral-300" />
+              <div className="h-1.5 w-3/4 bg-neutral-300" />
             </div>
           </Part>
           <Part xray={xray} tag={'<tr><td><table align="center"><tr><td bgcolor="#0d9488"><a>'} className="translate-x-1 bg-neutral-50">
             <div className="flex justify-center py-2">
-              <span className="rounded bg-teal-600 px-4 py-1 text-[10px] font-semibold text-white">RSVP</span>
+              <span className="bg-teal-600 px-4 py-1 text-[10px] font-semibold text-white">RSVP</span>
             </div>
           </Part>
           <Part xray={xray} tag={"</td></tr></table></td></tr></table>"} className="h-6 bg-neutral-200" />
@@ -83,7 +83,7 @@ function EmailMock() {
       </button>
       <div
         aria-hidden
-        className={`pointer-events-none absolute -top-4 -right-5 rounded-md border bg-white px-2.5 py-1.5 font-mono text-[11px] shadow-md transition-transform duration-500 ${xray ? "rotate-12" : "rotate-6"}`}
+        className={`pointer-events-none absolute -top-4 -right-5 border bg-white px-2.5 py-1.5 font-mono text-[11px] shadow-md transition-transform duration-500 ${xray ? "rotate-12" : "rotate-6"}`}
       >
         town-hall<span className="text-red-600">.oft</span>
       </div>
@@ -97,15 +97,12 @@ function EmailMock() {
 
 export function MarketingHero() {
   return (
-    <section className="relative overflow-hidden rounded-2xl border bg-white">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.35]"
-        style={{ backgroundImage: "radial-gradient(#e5e5e5 1px, transparent 1px)", backgroundSize: "16px 16px" }}
-      />
+    // The brackets sit outside the card, so they live on a wrapper the card's clipping can't reach.
+    <div className="corner-marks">
+    <section className="relative overflow-hidden border bg-white">
       <div className="relative grid items-center gap-10 p-8 sm:p-10 md:grid-cols-[1fr_auto]">
         <div className="min-w-0">
-          <p className="mb-3 inline-block -rotate-1 rounded bg-red-600 px-2 py-0.5 text-xs font-semibold uppercase tracking-wider text-white">
+          <p className="mb-3 inline-block -rotate-1 bg-red-600 px-2 py-0.5 text-xs font-semibold uppercase tracking-wider text-white">
             Internal email, minus the pain
           </p>
           <h1 className="font-[family-name:var(--font-display)] text-4xl leading-[1.05] text-neutral-900 sm:text-5xl">
@@ -120,14 +117,14 @@ export function MarketingHero() {
           <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
             <Link
               href="/new"
-              className="group inline-flex items-center gap-2.5 rounded-lg border-2 border-neutral-900 bg-red-600 px-6 py-3 font-[family-name:var(--font-display)] text-lg leading-none tracking-wide text-white uppercase shadow-[5px_5px_0_0_#171717] transition-all duration-150 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:bg-red-500 hover:shadow-[7px_7px_0_0_#171717] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-neutral-900 active:translate-x-1 active:translate-y-1 active:shadow-[1px_1px_0_0_#171717]"
+              className="group inline-flex items-center gap-2.5 border-2 border-neutral-900 bg-red-600 px-6 py-3 font-[family-name:var(--font-display)] text-lg leading-none tracking-wide text-white uppercase shadow-[5px_5px_0_0_#171717] transition-all duration-150 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:bg-red-500 hover:shadow-[7px_7px_0_0_#171717] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-neutral-900 active:translate-x-1 active:translate-y-1 active:shadow-[1px_1px_0_0_#171717]"
             >
               Build an email <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" strokeWidth={3} />
             </Link>
             <span className="text-xs text-neutral-500">No HTML. No table hacks. No crying.</span>
           </div>
           <figure className="mt-5 max-w-md">
-            <code className="block rounded-md bg-neutral-950 px-3 py-2 font-mono text-xs leading-relaxed break-all text-neutral-300">
+            <code className="block bg-neutral-950 px-3 py-2 font-mono text-xs leading-relaxed break-all text-neutral-300">
               <span className="text-red-400">&lt;table&gt;</span>&lt;tr&gt;&lt;td&gt;<span className="text-red-400">&lt;table&gt;</span>&lt;tr&gt;&lt;td&gt;
               <span className="text-red-400">&lt;table&gt;</span>&lt;tr&gt;&lt;td&gt;<span className="animate-pulse text-neutral-500">▍</span>
             </code>
@@ -153,5 +150,6 @@ export function MarketingHero() {
         ))}
       </div>
     </section>
+    </div>
   );
 }

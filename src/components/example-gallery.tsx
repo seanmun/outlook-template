@@ -18,7 +18,7 @@ const SCALE = 0.4;
 function Thumbnail({ example }: { example: EmailExample }) {
   const html = useMemo(() => renderEmailHtml(example.build(), { resolveImage: (src) => (src.kind === "sample" ? sampleDataUrl(src.sampleId) : null) }), [example]);
   return (
-    <div className="relative overflow-hidden rounded-t-lg border-b bg-neutral-100" style={{ height: FRAME_HEIGHT * SCALE * 0.72 }} aria-hidden>
+    <div className="relative overflow-hidden border-b bg-neutral-100" style={{ height: FRAME_HEIGHT * SCALE * 0.72 }} aria-hidden>
       <iframe
         srcDoc={html}
         title=""
@@ -68,7 +68,7 @@ export function ExampleGallery() {
               type="button"
               onClick={() => open(example)}
               disabled={!!opening}
-              className="group block w-full rounded-lg border-2 border-neutral-200 bg-white text-left transition-all duration-150 hover:-translate-y-1 hover:border-neutral-900 hover:shadow-[5px_5px_0_0_#171717] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 disabled:opacity-60"
+              className="group block w-full border-2 border-neutral-200 bg-white text-left transition-all duration-150 hover:-translate-y-1 hover:border-neutral-900 hover:shadow-[5px_5px_0_0_#171717] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 disabled:opacity-60"
             >
               <Thumbnail example={example} />
               <span className="block p-3">

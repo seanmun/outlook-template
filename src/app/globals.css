@@ -142,3 +142,39 @@
     display: none;
   }
 }
+
+/* Table-grid paper behind the home page: the same grid as the share cards and the logo.
+   The cell size and origin must match CELL in components/grid-keys.tsx. */
+.grid-paper {
+  background-image: linear-gradient(#ececec 1px, transparent 1px), linear-gradient(90deg, #ececec 1px, transparent 1px);
+  background-size: 56px 56px;
+  background-position: 0 0;
+}
+
+/* Corner brackets around a block, like the editor's selection marks. They snap inward once on load. */
+.corner-marks {
+  position: relative;
+}
+.corner-marks::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  pointer-events: none;
+  background: linear-gradient(#e7000b,#e7000b) top left/22px 3px no-repeat,linear-gradient(#e7000b,#e7000b) top left/3px 22px no-repeat,linear-gradient(#e7000b,#e7000b) top right/22px 3px no-repeat,linear-gradient(#e7000b,#e7000b) top right/3px 22px no-repeat,linear-gradient(#e7000b,#e7000b) bottom left/22px 3px no-repeat,linear-gradient(#e7000b,#e7000b) bottom left/3px 22px no-repeat,linear-gradient(#e7000b,#e7000b) bottom right/22px 3px no-repeat,linear-gradient(#e7000b,#e7000b) bottom right/3px 22px no-repeat;
+  animation: corner-lock 0.45s cubic-bezier(0.2, 1.5, 0.4, 1) 0.15s both;
+}
+@keyframes corner-lock {
+  from {
+    inset: -26px;
+    opacity: 0;
+  }
+  to {
+    inset: -8px;
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .corner-marks::after {
+    animation: none;
+  }
+}

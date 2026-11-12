@@ -46,7 +46,7 @@ export function AppHeader({ children }: { children?: React.ReactNode }) {
           <Link href="/sign-in" className="text-sm font-medium text-neutral-700 hover:text-neutral-900">
             Sign in
           </Link>
-          <Link href="/sign-up" className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-neutral-800">
+          <Link href="/sign-up" className=" bg-neutral-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-neutral-800">
             Sign up
           </Link>
         </div>
