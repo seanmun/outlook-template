@@ -65,7 +65,7 @@ export function OutlookNoTicker() {
           Can I email
         </a>{" "}
         (data updated {CANIEMAIL_LAST_UPDATE}). Hover to pause.{" "}
-        <Link href="/outlook-rendering" className="underline hover:text-neutral-300">
+        <Link href="/guides/outlook-rendering" className="underline hover:text-neutral-300">
           See all the Outlook rendering facts
         </Link>
         .

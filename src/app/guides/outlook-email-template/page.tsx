@@ -4,7 +4,7 @@ import { ARTICLE_H2, ArticlePage, Prose } from "@/components/article-page";
 import { pageMetadata, SITE_NAME } from "@/lib/seo";
 import { SITE_URL } from "@/lib/site";
 
-const PATH = "/outlook-email-template";
+const PATH = "/guides/outlook-email-template";
 const TITLE = "How to create an Outlook email template (.oft): Windows, new Outlook and Mac";
 const DESCRIPTION =
   "Step-by-step: create, save and reuse an email template in classic Outlook for Windows, the new Outlook, Outlook on the web and Outlook for Mac, and how to share one with your team.";
@@ -189,7 +189,7 @@ export default function Page() {
             </li>
             <li>
               <strong>Mac and Windows don&apos;t share a format.</strong> A Windows .oft will not open in Outlook for Mac, and a Mac .emltpl will not open in
-              Outlook for Windows. See <Link href="/oft-vs-msg-vs-emltpl">.oft vs .msg vs .emltpl</Link>.
+              Outlook for Windows. See <Link href="/guides/oft-vs-msg-vs-emltpl">.oft vs .msg vs .emltpl</Link>.
             </li>
           </ul>
         </Prose>
@@ -204,7 +204,7 @@ export default function Page() {
             A template can only contain what Outlook&apos;s editor can produce, and classic Outlook for Windows draws email with Microsoft Word&apos;s engine.
             Columns, banners and buttons are awkward to build by hand there, and layouts copied in from a web page usually fall apart. The reliable approach is
             table-based HTML written for that engine, which is what dedicated email builders output. The details are in{" "}
-            <Link href="/outlook-rendering">Outlook rendering facts</Link>, and there are ready-made starting points in{" "}
+            <Link href="/guides/outlook-rendering">Outlook rendering facts</Link>, and there are ready-made starting points in{" "}
             <Link href="/templates">Outlook email templates</Link>.
           </p>
           <Source href={SRC.send}>Microsoft Support: Send an email message based on a template</Source>

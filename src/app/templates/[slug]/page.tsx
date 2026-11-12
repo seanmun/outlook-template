@@ -87,7 +87,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             <li>Download it as an .oft file.</li>
             <li>
               Open the file in Outlook, add recipients and send. Steps for each version of Outlook are in{" "}
-              <Link href="/outlook-email-template">How to create an Outlook email template</Link>.
+              <Link href="/guides/outlook-email-template">How to create an Outlook email template</Link>.
             </li>
           </ol>
         </Prose>

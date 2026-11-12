@@ -43,13 +43,18 @@ export function SiteFooter() {
         <nav aria-label="Guides">
           <h2 className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">Guides</h2>
           <ul className="mt-3 space-y-2 text-sm">
-            {GUIDES.filter((g) => g.href !== "/templates").map((g) => (
+            {GUIDES.map((g) => (
               <li key={g.href}>
                 <Link href={g.href} className={link}>
                   {g.title}
                 </Link>
               </li>
             ))}
+            <li>
+              <Link href="/guides" className={link}>
+                All guides
+              </Link>
+            </li>
           </ul>
         </nav>
         <div>

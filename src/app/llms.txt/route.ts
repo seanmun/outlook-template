@@ -19,12 +19,13 @@ Key facts:
 
 - [Home](${SITE_URL}/): what the app does, with example emails
 - [Start an email](${SITE_URL}/new): open an example or a blank email in the editor
-- [How to create an Outlook email template](${SITE_URL}/outlook-email-template): exact steps for classic Outlook for Windows, the new Outlook, Outlook on the web and Outlook for Mac, and how to share a template
-- [Rounded buttons in Outlook](${SITE_URL}/outlook-rounded-buttons): why border-radius fails in classic Outlook for Windows and the three alternatives, with code
-- [.oft vs .msg vs .emltpl](${SITE_URL}/oft-vs-msg-vs-emltpl): what each Outlook email file type is and which app opens it
+- [Guides](${SITE_URL}/guides): every guide on the site
+- [How to create an Outlook email template](${SITE_URL}/guides/outlook-email-template): exact steps for classic Outlook for Windows, the new Outlook, Outlook on the web and Outlook for Mac, and how to share a template
+- [Rounded buttons in Outlook](${SITE_URL}/guides/outlook-rounded-buttons): why border-radius fails in classic Outlook for Windows and the three alternatives, with code
+- [.oft vs .msg vs .emltpl](${SITE_URL}/guides/oft-vs-msg-vs-emltpl): what each Outlook email file type is and which app opens it
 - [Outlook email templates](${SITE_URL}/templates): free templates for internal emails
 ${TEMPLATE_PAGES.map((t) => `- [${t.heading}](${SITE_URL}/templates/${t.slug}): ${t.description}`).join("\n")}
-- [Outlook rendering facts](${SITE_URL}/outlook-rendering): what .oft and .emltpl template files are and how to open them, which engine each version of Outlook uses, and ${OUTLOOK_WINDOWS_NOS.length} HTML and CSS features classic Outlook for Windows does not support (data from Can I email, updated ${CANIEMAIL_LAST_UPDATE})
+- [Outlook rendering facts](${SITE_URL}/guides/outlook-rendering): what .oft and .emltpl template files are and how to open them, which engine each version of Outlook uses, and ${OUTLOOK_WINDOWS_NOS.length} HTML and CSS features classic Outlook for Windows does not support (data from Can I email, updated ${CANIEMAIL_LAST_UPDATE})
 
 ## Optional
 

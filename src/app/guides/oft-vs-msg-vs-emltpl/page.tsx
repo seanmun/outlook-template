@@ -4,7 +4,7 @@ import { ARTICLE_H2, ArticlePage, DataTable, Prose } from "@/components/article-
 import { pageMetadata, SITE_NAME } from "@/lib/seo";
 import { SITE_URL } from "@/lib/site";
 
-const PATH = "/oft-vs-msg-vs-emltpl";
+const PATH = "/guides/oft-vs-msg-vs-emltpl";
 const TITLE = ".oft vs .msg vs .emltpl vs .eml: Outlook file types explained";
 const DESCRIPTION =
   "What each Outlook email file is for: .oft is a Windows template, .msg is one saved message, .emltpl is a Mac template and .eml is a standard email file. Which app opens which.";
@@ -80,7 +80,7 @@ export default function Page() {
             Microsoft says needs a qualifying Microsoft 365 subscription. Outlook for Mac does not open them.
           </p>
           <p>
-            Steps for each version are in <Link href="/outlook-email-template">How to create an Outlook email template</Link>.
+            Steps for each version are in <Link href="/guides/outlook-email-template">How to create an Outlook email template</Link>.
           </p>
         </Prose>
       </section>
@@ -135,7 +135,7 @@ export default function Page() {
             </div>
           ))}
           <p>
-            More on how these files work inside, and on how Outlook draws email, in <Link href="/outlook-rendering">Outlook rendering facts</Link>.
+            More on how these files work inside, and on how Outlook draws email, in <Link href="/guides/outlook-rendering">Outlook rendering facts</Link>.
           </p>
         </Prose>
       </section>

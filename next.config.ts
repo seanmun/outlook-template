@@ -11,6 +11,14 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  // The guides first went live at the top level; keep those addresses working.
+  async redirects() {
+    return ["outlook-email-template", "outlook-rendering", "outlook-rounded-buttons", "oft-vs-msg-vs-emltpl"].map((slug) => ({
+      source: `/${slug}`,
+      destination: `/guides/${slug}`,
+      permanent: true,
+    }));
+  },
   async headers() {
     return [
       {

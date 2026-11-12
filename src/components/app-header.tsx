@@ -36,9 +36,14 @@ export function AppHeader({ children }: { children?: React.ReactNode }) {
       </Link>
       <div className="flex min-w-0 flex-1 items-center gap-3">{children}</div>
       {!children && (
-        <Link href="/new" className="text-sm font-medium text-neutral-700 hover:text-neutral-900">
-          My emails
-        </Link>
+        <>
+          <Link href="/guides" className="hidden text-sm font-medium text-neutral-700 hover:text-neutral-900 sm:inline">
+            Guides
+          </Link>
+          <Link href="/new" className="text-sm font-medium text-neutral-700 hover:text-neutral-900">
+            My emails
+          </Link>
+        </>
       )}
       {ready && mode === "production" && <UserButton />}
       {ready && mode === "demo" && authAvailable && (

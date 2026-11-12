@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AppHeader } from "@/components/app-header";
 import { SiteFooter } from "@/components/site-footer";
-import { GUIDES } from "@/lib/marketing/guides";
+import { GUIDES, TEMPLATES_LINK } from "@/lib/marketing/guides";
 import { pageMetadata, SITE_NAME } from "@/lib/seo";
 import { SITE_URL } from "@/lib/site";
 import { CANIEMAIL_LAST_UPDATE, OUTLOOK_WINDOWS_NOS } from "@/lib/marketing/outlook-nos.generated";
@@ -12,7 +12,7 @@ const TITLE = "Outlook email rendering facts: .oft, .emltpl and what Outlook won
 const DESCRIPTION =
   "Plain answers about Outlook email: what .oft and .emltpl template files are and how to open them, which engine each Outlook uses, and the HTML and CSS classic Outlook for Windows ignores.";
 
-export const metadata: Metadata = pageMetadata({ title: "Outlook rendering facts", shareTitle: TITLE, description: DESCRIPTION, path: "/outlook-rendering", type: "article" });
+export const metadata: Metadata = pageMetadata({ title: "Outlook rendering facts", shareTitle: TITLE, description: DESCRIPTION, path: "/guides/outlook-rendering", type: "article" });
 
 const SRC = {
   oftNew: "https://support.microsoft.com/en-US/Outlook/download-add-and-share-templates-as-oft-files-in-outlook",
@@ -133,7 +133,7 @@ const jsonLd = JSON.stringify({
   "@context": "https://schema.org",
   "@type": "FAQPage",
   name: TITLE,
-  url: `${SITE_URL}/outlook-rendering`,
+  url: `${SITE_URL}/guides/outlook-rendering`,
   dateModified: "2026-11-12",
   inLanguage: "en",
   isPartOf: { "@type": "WebSite", name: SITE_NAME, url: SITE_URL },
@@ -273,7 +273,7 @@ export default function OutlookRenderingPage() {
             Keep reading
           </h2>
           <ul className="grid gap-3 sm:grid-cols-2">
-            {GUIDES.filter((g) => g.href !== "/outlook-rendering").map((g) => (
+            {[...GUIDES, TEMPLATES_LINK].filter((g) => g.href !== "/guides/outlook-rendering").map((g) => (
               <li key={g.href}>
                 <Link href={g.href} className="block h-full border bg-white p-4 hover:border-neutral-900">
                   <span className="font-semibold text-neutral-900">{g.title}</span>

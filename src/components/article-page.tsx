@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AppHeader } from "@/components/app-header";
 import { SiteFooter } from "@/components/site-footer";
-import { GUIDES } from "@/lib/marketing/guides";
+import { GUIDES, TEMPLATES_LINK } from "@/lib/marketing/guides";
 
 export const ARTICLE_H2 = "font-[family-name:var(--font-display)] text-2xl leading-tight text-neutral-900 uppercase";
 
@@ -63,7 +63,7 @@ export function ArticlePage(props: {
   cta?: { heading: string; body: string };
   children: React.ReactNode;
 }) {
-  const related = GUIDES.filter((g) => g.href !== props.path);
+  const related = [...GUIDES, TEMPLATES_LINK].filter((g) => g.href !== props.path);
   return (
     <div className="grid-paper flex min-h-screen flex-col">
       {/* Escaped so the JSON can never close the script tag early. */}
@@ -95,9 +95,14 @@ export function ArticlePage(props: {
         </section>
 
         <nav aria-labelledby="related-heading" className="space-y-4">
-          <h2 id="related-heading" className={ARTICLE_H2}>
-            Keep reading
-          </h2>
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <h2 id="related-heading" className={ARTICLE_H2}>
+              Keep reading
+            </h2>
+            <Link href="/guides" className="text-sm font-semibold text-neutral-900 underline underline-offset-2">
+              All guides
+            </Link>
+          </div>
           <ul className="grid gap-3 sm:grid-cols-2">
             {related.map((g) => (
               <li key={g.href}>

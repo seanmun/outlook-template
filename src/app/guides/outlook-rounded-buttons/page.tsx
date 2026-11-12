@@ -4,7 +4,7 @@ import { ARTICLE_H2, ArticlePage, DataTable, Prose } from "@/components/article-
 import { pageMetadata, SITE_NAME } from "@/lib/seo";
 import { SITE_URL } from "@/lib/site";
 
-const PATH = "/outlook-rounded-buttons";
+const PATH = "/guides/outlook-rounded-buttons";
 const TITLE = "Rounded buttons in Outlook email: why border-radius fails and three ways around it";
 const DESCRIPTION =
   "Classic Outlook for Windows ignores CSS border-radius, so email buttons come out square. The three options (square table button, VML shape, picture), with code and trade-offs.";
@@ -98,7 +98,7 @@ export default function Page() {
               border-radius
             </a>
             . The new Outlook for Windows, Outlook on the web and Outlook for Mac use browser engines and round corners normally, so the problem is specific
-            to the classic Windows app, which many companies still run. More in <Link href="/outlook-rendering">Outlook rendering facts</Link>.
+            to the classic Windows app, which many companies still run. More in <Link href="/guides/outlook-rendering">Outlook rendering facts</Link>.
           </p>
         </Prose>
       </section>
