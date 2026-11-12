@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { CANIEMAIL_LAST_UPDATE, OUTLOOK_WINDOWS_GREATEST_HITS, OUTLOOK_WINDOWS_NOS } from "@/lib/marketing/outlook-nos.generated";
 
 const INTERVAL_MS = 2600;
@@ -63,7 +64,11 @@ export function OutlookNoTicker() {
         <a href="https://www.caniemail.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-neutral-300">
           Can I email
         </a>{" "}
-        (data updated {CANIEMAIL_LAST_UPDATE}). Hover to pause.
+        (data updated {CANIEMAIL_LAST_UPDATE}). Hover to pause.{" "}
+        <Link href="/outlook-rendering" className="underline hover:text-neutral-300">
+          See all the Outlook rendering facts
+        </Link>
+        .
       </p>
     </div>
   );

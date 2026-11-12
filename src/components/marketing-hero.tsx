@@ -5,7 +5,7 @@ import Link from "next/link";
 import { OutlookNoTicker } from "./outlook-no-ticker";
 
 const STEPS = [
-  { icon: Sparkles, title: "Start fast", body: "Open an example, drop in a design comp, or describe it. AI builds the first draft from your brand\u2019s blocks." },
+  { icon: Sparkles, title: "Start fast", body: "Open an example or start from a blank email. Every block is built to survive Outlook." },
   { icon: LayoutTemplate, title: "Edit on the email", body: "Drag blocks into place, split rows into columns, and type straight onto the canvas." },
   { icon: Download, title: "Download & send", body: "Grab an .oft your team opens in Outlook. The table soup is already written." },
 ];
@@ -103,7 +103,7 @@ export function MarketingHero() {
       <div className="relative grid items-center gap-10 p-8 sm:p-10 md:grid-cols-[1fr_auto]">
         <div className="min-w-0">
           <p className="mb-3 inline-block -rotate-1 bg-red-600 px-2 py-0.5 text-xs font-semibold uppercase tracking-wider text-white">
-            Internal email, minus the pain
+            Stop sending boring internal emails
           </p>
           <h1 className="font-[family-name:var(--font-display)] text-4xl leading-[1.05] text-neutral-900 sm:text-5xl">
             Outlook sucks.
@@ -111,8 +111,8 @@ export function MarketingHero() {
             <span className="text-red-600">Your emails</span> don&apos;t have to.
           </h1>
           <p className="mt-4 max-w-md text-neutral-600">
-            Describe the email. AI assembles it from your brand&apos;s approved building blocks. Polish it in a visual editor, then download a template your
-            team opens in Outlook and sends.
+            Build a company email that actually looks designed: drag blocks into place, type straight onto it, then download a template that opens in
+            Outlook, ready to send. Free, no account needed.
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
             <Link

@@ -1,14 +1,11 @@
 import type { Metadata } from "next";
 import { AppHeader } from "@/components/app-header";
 import { SiteFooter } from "@/components/site-footer";
+import { pageMetadata } from "@/lib/seo";
 import { BRAND, logoSvg } from "@/lib/brand/logo";
 
 // Not linked from anywhere and kept out of search: a page to hand to people who ask for the logo.
-export const metadata: Metadata = {
-  title: "Media kit",
-  description: "Logo, colours and fonts for OUTLOOKSUCKS.email.",
-  robots: { index: false, follow: false },
-};
+export const metadata: Metadata = pageMetadata({ title: "Media kit", description: "Logo, colours and fonts for OUTLOOKSUCKS.email.", path: "/media", index: false });
 
 const FILES = [
   { href: "/brand/logo.svg", label: "Logo (SVG)", note: "Scales to any size. For light backgrounds." },

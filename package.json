@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "export:samples": "tsx scripts/export-samples.ts",
+    "test:kit": "tsx scripts/outlook-test-kit.ts",
     "generate:samples": "tsx scripts/generate-samples.ts",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
     "sync:caniemail": "tsx scripts/sync-caniemail.ts"

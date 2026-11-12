@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { GUIDES } from "@/lib/marketing/guides";
 
 /** Footer for the marketing and start pages. The editor is a full-screen tool and has none. */
 export function SiteFooter() {
   const link = "text-neutral-300 underline-offset-4 hover:text-white hover:underline";
   return (
     <footer className="mt-16 border-t-4 border-red-600 bg-neutral-950 text-neutral-400">
-      <div className="mx-auto grid w-full max-w-4xl gap-8 px-6 py-10 sm:grid-cols-[1.4fr_1fr_1fr]">
+      <div className="mx-auto grid w-full max-w-4xl gap-8 px-6 py-10 sm:grid-cols-2 lg:grid-cols-[1.3fr_0.8fr_1.2fr_1fr]">
         <div>
           <Link href="/" aria-label="OUTLOOKSUCKS.email home" className="inline-flex items-baseline font-[family-name:var(--font-display)] text-xl leading-none">
             <span className="text-white">OUTLOOK</span>
@@ -32,6 +33,23 @@ export function SiteFooter() {
                 My emails
               </Link>
             </li>
+            <li>
+              <Link href="/templates" className={link}>
+                Templates
+              </Link>
+            </li>
+          </ul>
+        </nav>
+        <nav aria-label="Guides">
+          <h2 className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">Guides</h2>
+          <ul className="mt-3 space-y-2 text-sm">
+            {GUIDES.filter((g) => g.href !== "/templates").map((g) => (
+              <li key={g.href}>
+                <Link href={g.href} className={link}>
+                  {g.title}
+                </Link>
+              </li>
+            ))}
           </ul>
         </nav>
         <div>

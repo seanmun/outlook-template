@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import Link from "next/link";
 import { LegalPage, MAINTAINER } from "@/components/legal-page";
 
-export const metadata: Metadata = { title: "Terms", description: "The terms for using OUTLOOKSUCKS.email." };
+export const metadata: Metadata = pageMetadata({ title: "Terms", description: "The terms for using OUTLOOKSUCKS.email.", path: "/terms" });
 
 export default function TermsPage() {
   return (

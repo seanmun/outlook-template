@@ -4,6 +4,7 @@ import MsgReader from "@kenjiuno/msgreader";
 import JSZip from "jszip";
 import { compareCfbNames, writeCfb } from "./cfb-writer";
 import { CLSID_OFT_TEMPLATE, writeMsg } from "./msg-writer";
+import { htmlToEncapsulatedRtf, rtfStream } from "./rtf-body";
 import { encodeHeaderValue, writeMime } from "./mime-writer";
 import { buildExportPackage, MissingImageError, prepareExportInput, sniffImageType, type ImageLoader } from "./pipeline";
 import { emltplExporter } from "./exporters";
@@ -90,6 +91,51 @@ describe("OFT (MS-OXMSG) writer", () => {
 
     const cfb = CFB.read(out, { type: "array" });
     expect(cfb.FileIndex[0].clsid.toUpperCase()).toBe("46F0060000000000C000000000000046");
+  });
+});
+
+describe("RTF-wrapped body (experimental)", () => {
+  const html = '<html>\n<body style="margin:0">\n<!--[if mso]><v:roundrect arcsize="18%"></v:roundrect><![endif]-->\n<p>Café {braces} \\ back\tslash ✓</p>\n\n</body></html>';
+
+  /** What a reader does: take the text of each \htmltag group, undo the escapes, and turn \par into a line break. */
+  function deEncapsulate(rtf: string): string {
+    const start = rtf.indexOf("{\\*\\htmltag");
+    return rtf
+      .slice(start, -1)
+      .split("\r\n")
+      .map((group) => (group === "" ? "" : group.replace(/^\{\\\*\\htmltag0 /, "").replace(/\}$/, "")))
+      .map((t) => (t === "\\par " ? "\n" : t))
+      .join("")
+      .replace(/\\u(-?\d+)\?/g, (_, n) => String.fromCharCode(Number(n) < 0 ? Number(n) + 0x10000 : Number(n)))
+      .replace(/\\tab /g, "\t")
+      .replace(/\\([\\{}])/g, "$1");
+  }
+
+  it("wraps HTML so that unwrapping gives the same HTML back", () => {
+    const rtf = htmlToEncapsulatedRtf(html);
+    expect(rtf.startsWith("{\\rtf1\\ansi\\ansicpg1252\\fromhtml1 ")).toBe(true);
+    expect(/^[\x00-\x7f]*$/.test(rtf)).toBe(true);
+    expect(deEncapsulate(rtf)).toBe(html);
+  });
+
+  it("writes the uncompressed RTF container", () => {
+    const stream = rtfStream("{\\rtf1 hi}");
+    const view = new DataView(stream.buffer);
+    expect(view.getUint32(0, true)).toBe(10 + 12);
+    expect(view.getUint32(4, true)).toBe(10);
+    expect(new TextDecoder().decode(stream.subarray(8, 12))).toBe("MELA");
+    expect(view.getUint32(12, true)).toBe(0);
+    expect(new TextDecoder().decode(stream.subarray(16))).toBe("{\\rtf1 hi}");
+  });
+
+  it("stores the RTF body in place of the HTML property when asked", () => {
+    const out = writeMsg({ subject: "S", html, plainText: "p", images: [], body: "rtf" });
+    const names = CFB.read(out, { type: "array" }).FullPaths.join("|");
+    expect(names).toContain("__substg1.0_10090102");
+    expect(names).not.toContain("__substg1.0_10130102");
+    const plain = CFB.read(writeMsg({ subject: "S", html, plainText: "p", images: [] }), { type: "array" }).FullPaths.join("|");
+    expect(plain).toContain("__substg1.0_10130102");
+    expect(plain).not.toContain("__substg1.0_10090102");
   });
 });
 

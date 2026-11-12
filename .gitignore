@@ -43,4 +43,6 @@ next-env.d.ts
 
 # sample export output
 /export-samples
+/outlook-test-kit
+/outlook-test-kit.zip
 .venv

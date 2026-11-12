@@ -6,6 +6,7 @@
  * inline (hidden, Content-ID referenced) image attachments, no recipients.
  */
 import { writeCfb, type CfbNode, type CfbStorage } from "./cfb-writer";
+import { htmlToEncapsulatedRtf, rtfStream } from "./rtf-body";
 
 export const CLSID_OFT_TEMPLATE = "{0006F046-0000-0000-C000-000000000046}";
 export const CLSID_MSG = "{00020D0B-0000-0000-C000-000000000046}";
@@ -48,6 +49,11 @@ export interface MsgInput {
   html: string;
   plainText: string;
   images: MsgInlineImage[];
+  /**
+   * How the HTML body is stored. "html" (the default) writes the raw HTML property.
+   * "rtf" is experimental: the HTML wrapped in RTF, the way Outlook stores a body it saved itself.
+   */
+  body?: "html" | "rtf";
   /** Defaults to the OFT template CLSID. */
   rootClsid?: string;
   now?: Date;
@@ -128,7 +134,12 @@ export function writeMsg(input: MsgInput): Uint8Array {
     { id: 0x0037, type: PT_UNICODE, value: input.subject }, // PidTagSubject
     { id: 0x0e1d, type: PT_UNICODE, value: input.subject }, // PidTagNormalizedSubject
     { id: 0x1000, type: PT_UNICODE, value: input.plainText }, // PidTagBody
-    { id: 0x1013, type: PT_BINARY, value: encoder.encode(input.html) }, // PidTagHtml
+    ...(input.body === "rtf"
+      ? ([
+          { id: 0x1009, type: PT_BINARY, value: rtfStream(htmlToEncapsulatedRtf(input.html)) }, // PidTagRtfCompressed
+          { id: 0x0e1f, type: PT_BOOLEAN, value: true }, // PidTagRtfInSync
+        ] satisfies Prop[])
+      : ([{ id: 0x1013, type: PT_BINARY, value: encoder.encode(input.html) }] satisfies Prop[])), // PidTagHtml
     { id: 0x1016, type: PT_INT32, value: NATIVE_BODY_HTML }, // PidTagNativeBody
     { id: 0x3fde, type: PT_INT32, value: CODEPAGE_UTF8 }, // PidTagInternetCodepage
     { id: 0x0e07, type: PT_INT32, value: MSGFLAG_UNSENT }, // PidTagMessageFlags

@@ -8,6 +8,7 @@ import { ConfigProvider, type ServerConfig } from "@/lib/client/config";
 import { publicConfig } from "@/lib/server/config";
 import { exporterStatuses } from "@/lib/export/exporters";
 import { SITE_URL } from "@/lib/site";
+import { pageMetadata, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE } from "@/lib/seo";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -15,15 +16,13 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 // App wordmark only. Emails never use web fonts.
 const bungee = Bungee({ variable: "--font-display", weight: "400", subsets: ["latin"] });
 
-const TITLE = "OUTLOOKSUCKS.email: free Outlook email template builder";
-const DESCRIPTION = "Stop sending boring internal emails. Build one by dragging blocks, then download an .oft template that opens in Outlook. Free, no account needed.";
-
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: TITLE, template: "%s | OUTLOOKSUCKS.email" },
-  description: DESCRIPTION,
-  openGraph: { type: "website", siteName: "OUTLOOKSUCKS.email", title: TITLE, description: DESCRIPTION },
-  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
+  ...pageMetadata({ description: SITE_DESCRIPTION, path: "/" }),
+  title: { default: SITE_TITLE, template: `%s | ${SITE_NAME}` },
+  applicationName: SITE_NAME,
+  // Each page sets its own canonical address; the layout must not hand "/" down to all of them.
+  alternates: undefined,
 };
 
 export const dynamic = "force-dynamic";
