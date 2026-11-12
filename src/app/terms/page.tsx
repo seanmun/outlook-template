@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalPage, MAINTAINER } from "@/components/legal-page";
 
-export const metadata: Metadata = { title: "Terms · OUTLOOKSUCKS.email", description: "The terms for using OUTLOOKSUCKS.email." };
+export const metadata: Metadata = { title: "Terms", description: "The terms for using OUTLOOKSUCKS.email." };
 
 export default function TermsPage() {
   return (

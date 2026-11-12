@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConfigProvider, type ServerConfig } from "@/lib/client/config";
 import { publicConfig } from "@/lib/server/config";
 import { exporterStatuses } from "@/lib/export/exporters";
+import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -14,9 +15,15 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 // App wordmark only. Emails never use web fonts.
 const bungee = Bungee({ variable: "--font-display", weight: "400", subsets: ["latin"] });
 
+const TITLE = "OUTLOOKSUCKS.email: free Outlook email template builder";
+const DESCRIPTION = "Build a good-looking email by dragging blocks, then download an .oft template that opens in Outlook. Free, no account needed.";
+
 export const metadata: Metadata = {
-  title: "OUTLOOKSUCKS.email",
-  description: "Assemble branded internal emails from approved modules and export Outlook templates.",
+  metadataBase: new URL(SITE_URL),
+  title: { default: TITLE, template: "%s | OUTLOOKSUCKS.email" },
+  description: DESCRIPTION,
+  openGraph: { type: "website", siteName: "OUTLOOKSUCKS.email", title: TITLE, description: DESCRIPTION },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
 
 export const dynamic = "force-dynamic";

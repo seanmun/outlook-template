@@ -16,6 +16,13 @@ import { TABLE_ATTRS } from "./modules/shared";
 
 export const CONTENT_WIDTH = 600;
 
+/**
+ * Outlook for Windows only (other clients see a comment): pin rendering to 96 pixels per inch
+ * so images keep their stated size on high-resolution screens, and allow PNGs.
+ * Nothing in the layout depends on it; the <head> is still disposable.
+ */
+const OFFICE_SETTINGS = "<!--[if gte mso 9]><xml><o:OfficeDocumentSettings><o:AllowPNG/><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->";
+
 export interface RenderOptions {
   resolveImage: (src: ImageSource) => string | null;
   /** Adds data-module-id attributes so the preview can map clicks to modules. Never set for export. */
@@ -85,11 +92,12 @@ export function renderEmailHtml(doc: EmailDocument, opts: RenderOptions): string
       : "";
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(doc.subject)}</title>
+${OFFICE_SETTINGS}
 ${previewStyle}
 </head>
 <body style="margin:0;padding:0;background-color:${pageBg};">

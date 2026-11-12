@@ -158,6 +158,14 @@ describe("module registry and rendering", () => {
   });
 });
 
+describe("Outlook settings", () => {
+  it("pins Outlook for Windows to 96 pixels per inch", () => {
+    const html = renderEmailHtml(newEmailDocument("copperfield"), { resolveImage: resolve });
+    expect(html).toContain('xmlns:o="urn:schemas-microsoft-com:office:office"');
+    expect(html).toMatch(/<head>[\s\S]*<!--\[if gte mso 9\]><xml><o:OfficeDocumentSettings><o:AllowPNG\/><o:PixelsPerInch>96<\/o:PixelsPerInch><\/o:OfficeDocumentSettings><\/xml><!\[endif\]-->[\s\S]*<\/head>/);
+  });
+});
+
 describe("divider and social icons", () => {
   const build = () => {
     const base = { ...newEmailDocument("harbor-pine"), modules: [] };

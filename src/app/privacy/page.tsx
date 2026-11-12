@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalPage, MAINTAINER } from "@/components/legal-page";
 
-export const metadata: Metadata = { title: "Privacy · OUTLOOKSUCKS.email", description: "What OUTLOOKSUCKS.email does and does not do with your data." };
+export const metadata: Metadata = { title: "Privacy", description: "What OUTLOOKSUCKS.email does and does not do with your data." };
 
 export default function PrivacyPage() {
   return (
