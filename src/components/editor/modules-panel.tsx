@@ -12,6 +12,7 @@ import { COLUMN_LAYOUTS, COLUMN_LAYOUT_IDS, type ColumnLayout } from "@/lib/emai
 import { getModule, modulesForBrand } from "@/lib/email/registry";
 import { useEditor } from "./context";
 import { useDrag, useDragSource } from "./drag";
+import { SavedModules } from "./saved-modules";
 
 function moduleLabel(m: ModuleInstance): string {
   const c = m.content as Record<string, unknown>;
@@ -182,10 +183,12 @@ export function ModulesPanel() {
     change((d) => docOps.add(d, type, where.dest, id), { select: target ? state.selectedId : id });
   }
 
+  /** Rows cannot go inside a row: they land below the selected module's row, or at the end. */
+  const rowDest: Destination = { parentId: null, index: selectedAt ? (selectedAt.parentId === null ? selectedAt.index : state.doc.modules.findIndex((m) => m.id === selectedAt.parentId)) + 1 : null };
+
   function addColumns(layout: ColumnLayout) {
     const id = newModuleId();
-    const after = selectedAt ? (selectedAt.parentId === null ? selectedAt.index : state.doc.modules.findIndex((m) => m.id === selectedAt.parentId)) + 1 : null;
-    change((d) => docOps.add(d, COLUMNS_TYPE, { parentId: null, index: after }, id, { layout }), { select: id });
+    change((d) => docOps.add(d, COLUMNS_TYPE, rowDest, id, { layout }), { select: id });
     setPicked({ parentId: id, column: 0 });
   }
 
@@ -241,6 +244,7 @@ export function ModulesPanel() {
           ))}
         </div>
       </section>
+      <SavedModules blockDest={where.dest} rowDest={rowDest} />
       <section>
         <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">Email structure</h3>
         {state.doc.modules.length === 0 ? (

@@ -17,6 +17,10 @@ export interface RenderContext<C, S> {
   fieldAttrs: (key: string) => string;
   /** Wraps rendered rich text so the preview can edit it in place. Returns the html unchanged on export. */
   editable: (key: string, html: string) => string;
+  /** Attributes marking the element that shows an image field, so the preview can replace it in place (empty on export). */
+  imageAttrs: (key: string) => string;
+  /** Attributes marking an element whose link is the url field `key`, so the preview can edit that link (empty on export). */
+  linkAttrs: (key: string) => string;
   /** Attributes for a column cell (preview annotations; empty on export). */
   columnAttrs: (column: number) => string;
 }
@@ -36,6 +40,8 @@ export interface ModuleDefinition<C = Record<string, unknown>, S = Record<string
   settingFields: SettingFieldSpec[];
   /** Extra guidance for the AI about how to use this module. */
   aiGuidance?: string;
+  /** The url fields currently in use, when not all of them are (e.g. only the social icons being shown). Default: all. */
+  activeLinks?: (content: C) => string[];
   /** Images the module renders that are not image fields (e.g. built-in icons), so exports can embed them. */
   images?: (content: C, settings: S) => ImageSource[];
   /** Default renderer, shared by brands with identical structure. */

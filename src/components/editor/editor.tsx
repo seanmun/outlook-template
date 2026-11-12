@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { DemoBanner } from "@/components/app-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useConfig } from "@/lib/client/config";
+import { useSavedModules } from "@/lib/client/saved-modules";
 import { ApiError, storesFor } from "@/lib/client/stores";
 import { editorReducer, initialEditorState } from "@/lib/editor/state";
 import { getBrand } from "@/lib/email/brands";
@@ -145,7 +146,10 @@ function LoadedEditor({
 
   const change = useCallback<EditorCtx["change"]>((update, opts) => dispatch({ type: "change", update, ...opts }), []);
 
-  const ctx: EditorCtx = { state, dispatch, change, brand, assets: stores.assets, saveStatus, saveError, assetsVersion, refreshAssets };
+  // Saved modules reference the account's own images, so each account (and "no account") keeps its own list.
+  const saved = useSavedModules(useConfig().userId ?? "local");
+
+  const ctx: EditorCtx = { state, dispatch, change, brand, assets: stores.assets, saveStatus, saveError, assetsVersion, refreshAssets, saved };
 
   return (
     <EditorContext.Provider value={ctx}>

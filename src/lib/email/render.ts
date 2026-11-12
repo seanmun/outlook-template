@@ -60,6 +60,8 @@ function renderModules(modules: ModuleInstance[], brand: Brand, opts: RenderOpti
         contentWidth,
         renderColumn: (column, width) => renderModules(m.columns?.[column]?.blocks ?? [], brand, opts, width),
         columnAttrs: (column) => (opts.annotate ? ` data-column="${column}"` : ""),
+        imageAttrs: (key) => (opts.annotate ? ` data-image-field="${escapeAttr(key)}"` : ""),
+        linkAttrs: (key) => (opts.annotate ? ` data-link="${escapeAttr(key)}"` : ""),
         fieldAttrs: (key) => (opts.annotate ? ` data-field="${escapeAttr(key)}" data-field-kind="text"` : ""),
         editable: (key, html) => (opts.annotate ? `<div data-field="${escapeAttr(key)}" data-field-kind="richtext">${html}</div>` : html),
       });
@@ -79,7 +81,7 @@ export function renderEmailHtml(doc: EmailDocument, opts: RenderOptions): string
     opts.annotate
       ? `<style>${DROP_KEYFRAMES}${(opts.animateModuleIds ?? [])
           .map((id, i) => `[data-module-id="${escapeAttr(id)}"]>td{animation:otb-drop .42s cubic-bezier(.2,1.4,.4,1) ${Math.min(i, 12) * 70}ms both;position:relative}`)
-          .join("")}body{-webkit-user-select:none;user-select:none}[data-module-id]{cursor:grab}${SELECTION_STYLE}[data-field]{-webkit-user-select:text;user-select:text;cursor:text;outline:none;min-width:8px}[data-field]:focus{box-shadow:0 0 0 1px rgba(37,99,235,.55),0 0 0 4px rgba(37,99,235,.14);border-radius:2px}</style>`
+          .join("")}body{-webkit-user-select:none;user-select:none}[data-module-id]{cursor:grab}${SELECTION_STYLE}[data-field]{-webkit-user-select:text;user-select:text;cursor:text;outline:none;min-width:8px}[data-image-field]{cursor:pointer}[data-link]{cursor:pointer}[data-field]:focus{box-shadow:0 0 0 1px rgba(37,99,235,.55),0 0 0 4px rgba(37,99,235,.14);border-radius:2px}</style>`
       : "";
 
   return `<!DOCTYPE html>

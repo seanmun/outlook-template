@@ -31,6 +31,7 @@ function logoOrWordmark(ctx: RenderContext<C, S>, available: number): string {
         available,
         fontFamily: brand.fontFamily,
         placeholderLabel: "Logo image missing",
+        attrs: ctx.imageAttrs("logo"),
       }),
     );
   }
@@ -97,7 +98,7 @@ export const headerModule = defineModule<C, S>({
   contentFields: [
     { key: "logo", label: "Logo image", kind: "image", maxWidth: 300, help: "Leave empty to use the text wordmark." },
     { key: "wordmark", label: "Wordmark text", kind: "text", maxLength: 80, sizeSetting: "wordmarkSize", colorSetting: "textColor" },
-    { key: "linkUrl", label: "Logo link", kind: "url" },
+    { key: "linkUrl", label: "Logo link", kind: "url", optional: true },
   ],
   settingFields: [
     { key: "align", label: "Alignment", kind: "align" },
@@ -106,6 +107,8 @@ export const headerModule = defineModule<C, S>({
     { key: "wordmarkSize", label: "Wordmark size", kind: "number", min: 14, max: 36, unit: "px" },
     { key: "padding", label: "Padding", kind: "padding" },
   ],
+  // The link sits on the logo image; a text wordmark is not linked.
+  activeLinks: (content) => (content.logo.src ? ["linkUrl"] : []),
   aiGuidance: "Usually the first module. Do not invent logo images; the wordmark defaults to the brand name.",
   render: renderDefault,
   renderers: { copperfield: renderCopperfield },

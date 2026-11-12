@@ -57,7 +57,7 @@ export interface TextStyleSettings {
 export type ContentFieldSpec =
   | ({ key: string; label: string; kind: "text"; maxLength: number; multiline?: boolean; help?: string } & TextStyleSettings)
   | ({ key: string; label: string; kind: "richtext"; help?: string } & TextStyleSettings)
-  | { key: string; label: string; kind: "url"; help?: string }
+  | { key: string; label: string; kind: "url"; help?: string; /** Fine to leave empty; not flagged as missing. */ optional?: boolean }
   | { key: string; label: string; kind: "image"; maxWidth: number; allowLink?: boolean; help?: string };
 
 export type SettingFieldSpec =

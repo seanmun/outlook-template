@@ -89,6 +89,7 @@ export const socialModule = defineModule<C, S>({
   ],
   aiGuidance:
     'Set networks to the icons wanted, in order (e.g. "facebook, x, instagram"); only the listed options exist. Leave each link as "" unless the user supplied the exact profile URL. Use iconTone "light" on dark backgrounds.',
+  activeLinks: (content) => selectedNetworks(content.networks).map((id) => `${id}Url`),
   images: (content, settings) => selectedNetworks(content.networks).map((id) => iconSource(id, settings.iconTone)),
   render: (ctx) => {
     const { content, settings: s } = ctx;
@@ -102,7 +103,7 @@ export const socialModule = defineModule<C, S>({
           : escapeAttr(label);
         const href = sanitizeUrl(content[`${id}Url`]);
         const linked = href ? `<a href="${escapeAttr(href)}" target="_blank" style="text-decoration:none;">${img}</a>` : img;
-        return `<td style="${style({ padding: `0 ${i === ids.length - 1 ? 0 : s.gap}px 0 0` })}">${linked}</td>`;
+        return `<td${ctx.linkAttrs(`${id}Url`)} style="${style({ padding: `0 ${i === ids.length - 1 ? 0 : s.gap}px 0 0` })}">${linked}</td>`;
       })
       .join("");
     const row = cells ? `<table ${TABLE_ATTRS} style="border-collapse:collapse;"><tr>${cells}</tr></table>` : "";

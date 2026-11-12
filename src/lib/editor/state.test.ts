@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { sampleEmailDocument } from "@/lib/email/starter";
 import { applyOperations } from "@/lib/email/operations";
 import { resolveDrop } from "./drop-target";
-import { docOps, editorReducer, initialEditorState, resolveAiResult } from "./state";
+import { parseSavedModules } from "@/lib/client/saved-modules";
+import { validateDocument } from "@/lib/email/registry";
+import { isLowRes, moduleInnerWidth, placeImage } from "./image-field";
+import { docOps, editorReducer, initialEditorState, instantiateSaved, resolveAiResult } from "./state";
 
 describe("editor history", () => {
   it("undo/redo restore exact documents and bump the version", () => {
@@ -211,5 +214,72 @@ describe("drop targets on the preview", () => {
 
   it("offers the whole content area when the email is empty", () => {
     expect(resolveDrop([], 300, 60, { draggingRow: false, content })).toMatchObject({ target: { kind: "end", parentId: null }, mark: "fill" });
+  });
+});
+
+describe("saved modules", () => {
+  const doc = sampleEmailDocument("harbor-pine");
+  const row = docOps.drop(doc, { kind: "new", type: "cta" }, { kind: "split", anchorId: doc.modules[2].id, side: "right" }).modules[2];
+
+  it("adds a copy of a saved block under a new id, leaving the saved one untouched", () => {
+    const saved = structuredClone(doc.modules[2]);
+    const next = docOps.addSaved(doc, saved, { parentId: null, index: 0 }, "m_fromsaved01");
+    expect(next.modules[0]).toEqual({ ...doc.modules[2], id: "m_fromsaved01" });
+    expect(next.modules).toHaveLength(doc.modules.length + 1);
+    expect(saved).toEqual(doc.modules[2]);
+  });
+
+  it("gives a saved row and its blocks new ids every time it is used", () => {
+    expect(row.columns).toHaveLength(2);
+    const once = docOps.drop(doc, { kind: "saved", module: row }, { kind: "end", parentId: null }, "m_savedrow001");
+    const twice = docOps.drop(once, { kind: "saved", module: row }, { kind: "end", parentId: null }, "m_savedrow002");
+    const [a, b] = twice.modules.slice(-2);
+    expect([a.id, b.id]).toEqual(["m_savedrow001", "m_savedrow002"]);
+    const ids = [a, b].flatMap((r) => r.columns!.flatMap((c) => c.blocks.map((x) => x.id)));
+    expect(new Set([...ids, ...row.columns!.flatMap((c) => c.blocks.map((x) => x.id))]).size).toBe(6);
+    expect(validateDocument(twice).ok).toBe(true);
+  });
+
+  it("refuses a saved row inside a column and anything that is not a valid module", () => {
+    const withRow = docOps.addSaved(doc, row, { parentId: null, index: null }, "m_savedrow003");
+    expect(docOps.addSaved(withRow, row, { parentId: "m_savedrow003", column: 0, index: null })).toBe(withRow);
+    expect(docOps.drop(withRow, { kind: "saved", module: row }, { kind: "end", parentId: "m_savedrow003", column: 0 })).toBe(withRow);
+    const broken = { ...doc.modules[2], settings: { fontSize: "huge" } };
+    expect(instantiateSaved(doc, broken)).toBeNull();
+    expect(docOps.addSaved(doc, broken, { parentId: null, index: null })).toBe(doc);
+    expect(instantiateSaved(doc, { ...doc.modules[2], type: "not-a-module" })).toBeNull();
+  });
+
+  it("reads back only well-formed saved modules", () => {
+    const good = { id: "a", name: "My row", brandId: "harbor-pine", savedAt: "2026-11-11T00:00:00.000Z", module: row };
+    expect(parseSavedModules(JSON.stringify([good, { id: "b", name: "", module: {} }, "junk"]))).toEqual([good]);
+    expect(parseSavedModules("not json")).toEqual([]);
+    expect(parseSavedModules(null)).toEqual([]);
+    expect(parseSavedModules('{"a":1}')).toEqual([]);
+  });
+});
+
+describe("images placed on the canvas", () => {
+  const picture = { src: { kind: "asset" as const, assetId: "abc" }, width: 1200, height: 600 };
+  const empty = { src: null, alt: "Team photo", width: 600, naturalWidth: null, naturalHeight: null, linkUrl: "https://example.com/" };
+
+  it("fills an empty field to the width allowed and keeps alt text and link", () => {
+    expect(placeImage(empty, picture, 520)).toEqual({ ...empty, src: picture.src, width: 520, naturalWidth: 1200, naturalHeight: 600 });
+  });
+
+  it("keeps a chosen width when replacing, and never upscales a small picture", () => {
+    expect(placeImage({ ...empty, src: picture.src, width: 300 }, picture, 600).width).toBe(300);
+    expect(placeImage(empty, { ...picture, width: 180 }, 600).width).toBe(180);
+    expect(isLowRes(placeImage(empty, { ...picture, width: 700 }, 600))).toBe(true);
+    expect(isLowRes(placeImage(empty, picture, 600))).toBe(false);
+  });
+
+  it("limits images to the module's own width, inside a column too", () => {
+    const doc = sampleEmailDocument("harbor-pine");
+    const hero = doc.modules.find((m) => m.type === "hero")!;
+    expect(moduleInnerWidth(doc, hero.id)).toBe(600);
+    const split = docOps.drop(doc, { kind: "new", type: "hero" }, { kind: "split", anchorId: doc.modules[2].id, side: "left" }, "m_columnhero1");
+    // 600 wide, 40 padding each side, 24 gap, two equal columns.
+    expect(moduleInnerWidth(split, "m_columnhero1")).toBe(248);
   });
 });

@@ -24,10 +24,10 @@ export const dynamic = "force-dynamic";
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const config: ServerConfig = { ...publicConfig(), exporters: exporterStatuses() };
   const production = config.mode === "production";
-  const signedIn = production ? !!(await auth()).userId : false;
+  const userId = production ? (await auth()).userId : null;
   const app = (
     <>
-      <ConfigProvider value={config} signedIn={signedIn}>
+      <ConfigProvider value={config} userId={userId}>
         <TooltipProvider>{children}</TooltipProvider>
       </ConfigProvider>
       <Toaster position="bottom-right" />

@@ -1,18 +1,28 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Monitor, Smartphone, Volume2, VolumeX } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import type { UploadedImage } from "@/lib/client/stores";
+import { isLowRes, moduleInnerWidth, placeImage } from "@/lib/editor/image-field";
 import { playSfx, primeSfx, setSfxEnabled, useSfxEnabled } from "@/lib/client/sfx";
 import { domToPlainText, domToRichText } from "@/lib/editor/dom-richtext";
 import { resolveDrop, type Box, type RowGeometry } from "@/lib/editor/drop-target";
-import { docOps } from "@/lib/editor/state";
+import { docOps, instantiateSaved, payloadType } from "@/lib/editor/state";
 import { isSafeUrl } from "@/lib/email/html";
-import { COLUMNS_TYPE, allModules, findModule, type EmailDocument } from "@/lib/email/document";
-import { getModule } from "@/lib/email/registry";
+import { COLUMNS_TYPE, allModules, findModule, locateModule, newModuleId, type EmailDocument } from "@/lib/email/document";
+import type { ImageValue } from "@/lib/email/fields";
+import { getModule, moduleSupportsBrand } from "@/lib/email/registry";
 import { renderEmailHtml } from "@/lib/email/render";
 import { CanvasToolbar, type EditingField, type TextFormats } from "./canvas-toolbar";
 import { useEditor } from "./context";
 import { useDrag, type DropResolver } from "./drag";
+import { LOW_RES_TIP } from "./fields";
+import { ImageLibraryDialog } from "./image-library";
+
+/** One image field of one module. */
+type ImageTarget = { moduleId: string; field: string };
+const IMAGE_TYPES = /^image\/(png|jpeg|gif)$/;
 
 /**
  * The canvas. Renders the exact HTML the exporters use (plus preview-only
@@ -20,6 +30,9 @@ import { useDrag, type DropResolver } from "./drag";
  * allow-scripts: nothing in the email can execute. allow-same-origin lets this
  * component attach its own handlers (select, drag, edit text in place) and lets
  * /api/assets images load with the session.
+ *
+ * Images are placed on the canvas too: click an empty image, double-click a
+ * filled one, or drop a picture from the desktop onto the email.
  *
  * Text is edited directly in the frame. While that happens the frame is not
  * re-rendered (the browser already shows what was typed); the stored text is
@@ -38,7 +51,7 @@ function diffModules(before: EmailDocument, after: EmailDocument) {
 }
 
 export function Preview() {
-  const { state, dispatch, change, assets, assetsVersion } = useEditor();
+  const { state, dispatch, change, assets, assetsVersion, refreshAssets, brand } = useEditor();
   const frame = useRef<HTMLIFrameElement>(null);
   const scroll = useRef(0);
   const [width, setWidth] = useState<"desktop" | "narrow">("desktop");
@@ -121,6 +134,66 @@ export function Preview() {
     docRef.current = state.doc;
   }, [state.doc]);
 
+  /* ---- images placed on the canvas ---- */
+  const fileInput = useRef<HTMLInputElement>(null);
+  /** The image field the file picker was opened for. */
+  const pickFor = useRef<ImageTarget | null>(null);
+  const [library, setLibrary] = useState<ImageTarget | null>(null);
+  /** A module link clicked on the canvas; the toolbar opens its box. */
+  const [linkAsk, setLinkAsk] = useState<{ moduleId: string; key: string; n: number } | null>(null);
+
+  const imageFieldOf = (doc: EmailDocument, moduleId: string) => {
+    const m = findModule(doc, moduleId);
+    const spec = m && getModule(m.type)?.contentFields.find((f) => f.kind === "image");
+    return m && spec?.kind === "image" ? { m, spec } : null;
+  };
+  /** Puts a picture into an image field and selects that module. */
+  const putImage = useCallback(
+    (target: ImageTarget, picture: UploadedImage, addAfter?: { afterId: string | null }) => {
+      const build = (d: EmailDocument) => {
+        if (addAfter) {
+          // A new image block for the picture: below the module it was dropped on, or at the end.
+          const at = addAfter.afterId ? locateModule(d, addAfter.afterId) : null;
+          d = docOps.add(d, "hero", !at ? { parentId: null, index: null } : { ...at, index: at.index + 1 }, target.moduleId);
+        }
+        const m = findModule(d, target.moduleId);
+        const spec = m && getModule(m.type)?.contentFields.find((f) => f.key === target.field);
+        if (!m || spec?.kind !== "image") return null;
+        const placed = placeImage(m.content[target.field] as ImageValue, picture, Math.min(spec.maxWidth, moduleInnerWidth(d, m.id)));
+        return { doc: docOps.setContent(d, m.id, target.field, placed), placed };
+      };
+      change((d) => build(d)?.doc ?? d, { select: target.moduleId });
+      refreshAssets();
+      const now = build(docRef.current);
+      if (now && isLowRes(now.placed)) toast.message(LOW_RES_TIP);
+    },
+    [change, refreshAssets],
+  );
+  /** Uploads a file, then places it: into `target`, or as a new image block after `afterId` (or at the end). */
+  const uploadImage = useCallback(
+    async (file: File, where: { target: ImageTarget } | { afterId: string | null }) => {
+      const wait = toast.loading("Uploading image…");
+      try {
+        const picture = await assets.upload(file);
+        if ("target" in where) putImage(where.target, picture);
+        else putImage({ moduleId: newModuleId(), field: "image" }, picture, where);
+      } catch (e) {
+        toast.error((e as Error).message);
+      } finally {
+        toast.dismiss(wait);
+      }
+    },
+    [assets, putImage],
+  );
+  const canAddImageBlock = (() => {
+    const hero = getModule("hero");
+    return !!hero && moduleSupportsBrand(hero, brand);
+  })();
+  const openPicker = useCallback((target: ImageTarget) => {
+    pickFor.current = target;
+    fileInput.current?.click();
+  }, []);
+
   useEffect(() => {
     const resolver: DropResolver = (clientX, clientY, payload) => {
       const f = frame.current;
@@ -155,9 +228,10 @@ export function Preview() {
         ];
       });
       const moving = payload.kind === "move" ? findModule(docRef.current, payload.id) : undefined;
+      if (payload.kind === "saved" && !instantiateSaved(docRef.current, payload.module)) return null;
       const table = d.querySelector("table table");
       const hit = resolveDrop(rows, x, y, {
-        draggingRow: (moving?.type ?? (payload.kind === "new" ? payload.type : "")) === COLUMNS_TYPE,
+        draggingRow: payloadType(docRef.current, payload) === COLUMNS_TYPE,
         movingId: moving?.id,
         content: table ? box(table) : { left: 40, top: 24, right: fr.width - 40, bottom: 104 },
       });
@@ -315,11 +389,44 @@ export function Preview() {
       }
     }
 
+    /** The module under an event, with the image field or link the event landed on, if any. */
+    const hitOf = (e: Event) => {
+      const t = e.target as HTMLElement;
+      const moduleId = t.closest?.("[data-module-id]")?.getAttribute("data-module-id") ?? null;
+      const imageEl = t.closest?.("[data-image-field]");
+      return { moduleId, imageEl, imageField: imageEl?.getAttribute("data-image-field") ?? null, link: t.closest?.("[data-link]")?.getAttribute("data-link") ?? null };
+    };
     doc.addEventListener("click", (e) => {
-      const el = (e.target as HTMLElement).closest?.("[data-module-id]");
+      const hit = hitOf(e);
       if ((e.target as HTMLElement).closest?.("a")) e.preventDefault();
       if (drag.consumeClick()) return;
-      dispatch({ type: "select", id: el?.getAttribute("data-module-id") ?? null });
+      dispatch({ type: "select", id: hit.moduleId });
+      // A clicked link (e.g. one social icon) opens its address box; an empty image opens the file picker.
+      setLinkAsk((prev) => (hit.moduleId && hit.link ? { moduleId: hit.moduleId, key: hit.link, n: (prev?.n ?? 0) + 1 } : null));
+      if (hit.moduleId && hit.imageField && hit.imageEl?.tagName !== "IMG") openPicker({ moduleId: hit.moduleId, field: hit.imageField });
+    });
+    doc.addEventListener("dblclick", (e) => {
+      const hit = hitOf(e);
+      if (hit.moduleId && hit.imageField) openPicker({ moduleId: hit.moduleId, field: hit.imageField });
+    });
+
+    // Pictures dropped from the desktop: onto a module with an image, they replace it; anywhere else they become a new image block.
+    const carriesFiles = (e: DragEvent) => !!e.dataTransfer && [...e.dataTransfer.types].includes("Files");
+    doc.addEventListener("dragover", (e) => {
+      if (!carriesFiles(e)) return;
+      e.preventDefault();
+      e.dataTransfer!.dropEffect = "copy";
+    });
+    doc.addEventListener("drop", (e) => {
+      if (!carriesFiles(e)) return;
+      e.preventDefault();
+      const file = [...e.dataTransfer!.files].find((f) => IMAGE_TYPES.test(f.type));
+      if (!file) return void toast.error("Drop a PNG, JPEG or GIF image.");
+      const { moduleId } = hitOf(e);
+      const field = moduleId ? imageFieldOf(docRef.current, moduleId)?.spec.key : undefined;
+      if (moduleId && field) void uploadImage(file, { target: { moduleId, field } });
+      else if (canAddImageBlock) void uploadImage(file, { afterId: moduleId });
+      else toast.error("Drop the image onto a block that has an image.");
     });
 
     // Press on a module and move to drag it. While the button is held the browser may keep
@@ -408,7 +515,7 @@ export function Preview() {
   return (
     <div className="flex h-full flex-col" onPointerDownCapture={primeSfx}>
       <div className="flex items-center justify-between border-b bg-white px-3 py-1.5 text-xs text-neutral-500">
-        <span>Click text to edit it. Drag blocks to move them. Hold Option (Alt) to see padding. Test in Outlook before sending.</span>
+        <span>Click text to edit it. Drop pictures onto the email. Drag blocks to move them. Hold Option (Alt) to see padding.</span>
         <div className="flex gap-1">
           <Button
             variant="ghost"
@@ -458,14 +565,14 @@ export function Preview() {
           )}
           {selected && selBox && !drag.isActive() && (
             <div
-              className="absolute z-20 max-w-full"
-              style={{
-                // Above the module when there is room, otherwise just under its top edge.
-                top: selBox.top >= 46 ? selBox.top - 42 : Math.max(4, Math.min(selBox.top + 6, selBox.bottom - 40)),
-                left: Math.max(4, Math.min(selBox.left, frameWidth - 470)),
-              }}
+              className="pointer-events-none absolute right-1 left-1 z-20 flex"
+              // Above the module when there is room (growing upward if the tools wrap), otherwise just under its top edge.
+              style={selBox.top >= 46 ? { bottom: `calc(100% - ${selBox.top - 6}px)` } : { top: Math.max(4, Math.min(selBox.top + 6, selBox.bottom - 40)) }}
               data-canvas-toolbar
             >
+              {/* Lines the bar up with the module's left edge, giving way when the bar needs the room. */}
+              <div className="min-w-0 shrink" style={{ flexBasis: Math.max(0, selBox.left - 4) }} />
+              <div className="pointer-events-auto max-w-full shrink-0">
               <CanvasToolbar
                 key={selected.id}
                 module={selected}
@@ -477,9 +584,26 @@ export function Preview() {
                 onBeforeRestyle={() => {
                   refocus.current = editing ? { moduleId: editing.moduleId, field: editing.field } : null;
                 }}
+                onImage={(action, field) => (action === "upload" ? openPicker({ moduleId: selected.id, field }) : setLibrary({ moduleId: selected.id, field }))}
+                linkAsk={linkAsk?.moduleId === selected.id ? linkAsk : null}
               />
+              </div>
             </div>
           )}
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/png,image/jpeg,image/gif"
+            className="hidden"
+            aria-label="Upload an image"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              const target = pickFor.current;
+              e.target.value = "";
+              if (file && target) void uploadImage(file, { target });
+            }}
+          />
+          <ImageLibraryDialog open={!!library} onOpenChange={(open) => !open && setLibrary(null)} assets={assets} onPick={(picture) => library && putImage(library, picture)} />
         </div>
       </div>
     </div>

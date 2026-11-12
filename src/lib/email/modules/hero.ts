@@ -52,7 +52,9 @@ export const heroModule = defineModule<C, S>({
           src: content.image.src ? ctx.resolveImage(content.image.src) : null,
           available,
           fontFamily: brand.fontFamily,
-          placeholderLabel: "Image placeholder: upload an image",
+          // The canvas invites a click; an exported email with a missing image says what it is.
+          placeholderLabel: ctx.imageAttrs("image") ? "Click to add an image, or drop one here" : "Image placeholder: upload an image",
+          attrs: ctx.imageAttrs("image"),
         }),
       ),
     });

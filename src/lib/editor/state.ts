@@ -3,7 +3,7 @@ import { requireBrand } from "@/lib/email/brands";
 import { COLUMNS_TYPE, MAX_BLOCKS_PER_COLUMN, findModule, locateModule, newModuleId, type EmailDocument, type ModuleInstance } from "@/lib/email/document";
 import type { ColumnLayout } from "@/lib/email/modules/columns";
 import { applyOperations, type Operation, type AvailableImage } from "@/lib/email/operations";
-import { createModuleInstance, fitToColumn, getModule, reflowColumns } from "@/lib/email/registry";
+import { createModuleInstance, fitToColumn, getModule, reflowColumns, validateDocument } from "@/lib/email/registry";
 
 const HISTORY_LIMIT = 100;
 const COALESCE_MS = 1000;
@@ -107,8 +107,31 @@ function create(doc: EmailDocument, type: string, id: string, settings?: Record<
   return m;
 }
 
-/** What is being dragged: a new module from the palette, or an existing one. */
-export type DragPayload = { kind: "new"; type: string; settings?: Record<string, unknown> } | { kind: "move"; id: string };
+/** A copy of a module (and, for a row, its blocks) under new ids. */
+function freshCopy(m: ModuleInstance, id: string): ModuleInstance {
+  return {
+    ...structuredClone(m),
+    id,
+    ...(m.columns ? { columns: m.columns.map((c) => ({ blocks: c.blocks.map((b) => ({ ...structuredClone(b), id: newModuleId() })) })) } : {}),
+  };
+}
+
+/**
+ * A saved module made ready for this email: copied under new ids and checked against
+ * the email's brand. Null when it cannot be used here (e.g. the brand lacks that module).
+ */
+export function instantiateSaved(doc: EmailDocument, saved: ModuleInstance, id = newModuleId()): ModuleInstance | null {
+  const r = validateDocument({ ...doc, modules: [freshCopy(saved, id)] });
+  return r.ok ? r.doc.modules[0] : null;
+}
+
+/** What is being dragged: a new module from the palette, one the user saved earlier, or an existing one. */
+export type DragPayload = { kind: "new"; type: string; settings?: Record<string, unknown> } | { kind: "saved"; module: ModuleInstance } | { kind: "move"; id: string };
+
+/** The module type a drag would place. */
+export function payloadType(doc: EmailDocument, payload: DragPayload): string {
+  return payload.kind === "new" ? payload.type : payload.kind === "saved" ? payload.module.type : (findModule(doc, payload.id)?.type ?? "");
+}
 
 /** Where a drag lands, described relative to what is already there so it survives lifting the dragged module out. */
 export type DropTarget =
@@ -135,6 +158,11 @@ export const docOps = {
     if (!canPlace(doc, type, dest)) return doc;
     return insert(doc, create(doc, type, id, settings), dest);
   },
+  /** Adds a copy of a saved module. Returns the same document when it cannot go there. */
+  addSaved(doc: EmailDocument, saved: ModuleInstance, dest: Destination, id = newModuleId()): EmailDocument {
+    const item = instantiateSaved(doc, saved, id);
+    return item && canPlace(doc, item.type, dest) ? insert(doc, item, dest) : doc;
+  },
   /** Completes a drag. Returns the same document when the drop is not allowed or changes nothing. */
   drop(doc: EmailDocument, payload: DragPayload, target: DropTarget, newId = newModuleId()): EmailDocument {
     const moving = payload.kind === "move" ? findModule(doc, payload.id) : undefined;
@@ -142,7 +170,9 @@ export const docOps = {
     if (moving && "anchorId" in target && target.anchorId === moving.id) return doc;
     const from = moving ? locateModule(doc, moving.id) : null;
     const base = moving ? without(doc, moving.id) : doc;
-    let item = moving ?? create(doc, (payload as { type: string }).type, newId, (payload as { settings?: Record<string, unknown> }).settings);
+    const made = payload.kind === "saved" ? instantiateSaved(doc, payload.module, newId) : payload.kind === "new" ? create(doc, payload.type, newId, payload.settings) : moving;
+    if (!made) return doc;
+    let item = made;
 
     let next: EmailDocument;
     if (target.kind === "split") {
@@ -171,11 +201,7 @@ export const docOps = {
     const loc = locateModule(doc, id);
     const original = findModule(doc, id);
     if (!loc || !original) return doc;
-    const copy: ModuleInstance = {
-      ...structuredClone(original),
-      id: newId,
-      ...(original.columns ? { columns: original.columns.map((c) => ({ blocks: c.blocks.map((b) => ({ ...structuredClone(b), id: newModuleId() })) })) } : {}),
-    };
+    const copy = freshCopy(original, newId);
     const dest: Destination = loc.parentId === null ? { parentId: null, index: loc.index + 1 } : { parentId: loc.parentId, column: loc.column, index: loc.index + 1 };
     return canPlace(doc, copy.type, dest) ? insert(doc, copy, dest) : doc;
   },

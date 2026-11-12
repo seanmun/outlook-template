@@ -45,11 +45,14 @@ export function imageHtml(opts: {
   available: number;
   fontFamily: string;
   placeholderLabel: string;
+  /** Preview annotations for the image or its placeholder; empty on export. */
+  attrs?: string;
 }): string {
+  const attrs = opts.attrs ?? "";
   const width = clampWidth(opts.image.width, opts.available);
   const height = imageDisplayHeight(opts.image, width);
   if (!opts.src) {
-    return `<table ${TABLE_ATTRS} width="${width}" style="${style({ width: `${width}px`, "border-collapse": "collapse" })}"><tr><td width="${width}" height="${Math.min(height, 400)}" bgcolor="#d9dde2" align="center" valign="middle" style="${style({
+    return `<table${attrs} ${TABLE_ATTRS} width="${width}" style="${style({ width: `${width}px`, "border-collapse": "collapse" })}"><tr><td width="${width}" height="${Math.min(height, 400)}" bgcolor="#d9dde2" align="center" valign="middle" style="${style({
       width: `${width}px`,
       height: `${Math.min(height, 400)}px`,
       "background-color": "#d9dde2",
@@ -59,7 +62,7 @@ export function imageHtml(opts: {
       "text-align": "center",
     })}">${escapeHtml(opts.placeholderLabel)}</td></tr></table>`;
   }
-  const img = `<img src="${escapeAttr(opts.src)}" width="${width}" height="${height}" alt="${escapeAttr(opts.image.alt)}" style="${style({
+  const img = `<img${attrs} src="${escapeAttr(opts.src)}" width="${width}" height="${height}" alt="${escapeAttr(opts.image.alt)}" style="${style({
     display: "block",
     width: `${width}px`,
     height: `${height}px`,

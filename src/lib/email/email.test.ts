@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { BRANDS } from "./brands";
+import { BRANDS, requireBrand } from "./brands";
 import { escapeHtml, sanitizeUrl } from "./html";
 import { findContentIssues } from "./issues";
 import { applyOperations, type Operation } from "./operations";
 import { allModules } from "./document";
 import { columnWidths } from "./modules/columns";
 import { EXAMPLES } from "./examples";
-import { MODULES, validateDocument } from "./registry";
+import { MODULES, createModuleInstance, validateDocument } from "./registry";
 import { collectImageSources, renderEmailHtml } from "./render";
 import { liteToRichText, RichTextSchema } from "./richtext";
 import { newEmailDocument, sampleEmailDocument } from "./starter";
@@ -265,6 +265,27 @@ describe("columns", () => {
 
 const createTextIn = (doc: { modules: { columns?: { blocks: { type: string; content: Record<string, unknown> }[] }[] }[] }) =>
   doc.modules[0].columns![1].blocks.find((b) => b.type === "text")!.content.headline;
+
+describe("canvas annotations for images and links", () => {
+  const doc = sampleEmailDocument("harbor-pine");
+  const social = createModuleInstance("social", requireBrand("harbor-pine"), "m_social0001");
+  const withSocial = { ...doc, modules: [...doc.modules, social] };
+
+  it("marks image fields and module links in the preview only", () => {
+    const preview = renderEmailHtml(withSocial, { resolveImage: resolve, annotate: true });
+    expect(preview).toContain('data-image-field="image"');
+    expect(preview.match(/data-link="(facebook|x|instagram)Url"/g)).toHaveLength(3);
+    const exported = renderEmailHtml(withSocial, { resolveImage: resolve });
+    expect(exported).not.toMatch(/data-(image-field|link|field|module-id)/);
+  });
+
+  it("an empty image invites a click on the canvas but reads as a placeholder when exported", () => {
+    const hero = createModuleInstance("hero", requireBrand("harbor-pine"), "m_emptyhero01");
+    const d = { ...doc, modules: [hero] };
+    expect(renderEmailHtml(d, { resolveImage: resolve, annotate: true })).toContain("Click to add an image");
+    expect(renderEmailHtml(d, { resolveImage: resolve })).toContain("Image placeholder: upload an image");
+  });
+});
 
 describe("home page examples", () => {
   it.each(EXAMPLES.map((e) => [e.id, e] as const))("%s builds a valid email that renders with its images", (_id, example) => {

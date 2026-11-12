@@ -10,7 +10,10 @@ import type { Brand } from "@/lib/email/brands";
 import type { Align, ImageValue, Padding } from "@/lib/email/fields";
 import { isSafeUrl } from "@/lib/email/html";
 import type { AssetClient, UploadedImage } from "@/lib/client/stores";
+import { isLowRes, placeImage } from "@/lib/editor/image-field";
 import { ImageLibraryDialog } from "./image-library";
+
+export const LOW_RES_TIP = "Tip: images at 2× display width look sharper on high-DPI screens.";
 
 export function FieldShell({ label, help, error, htmlFor, children }: { label: string; help?: string; error?: string | null; htmlFor?: string; children: React.ReactNode }) {
   return (
@@ -257,10 +260,10 @@ export function ImageField(props: {
   const ratio = v.naturalWidth && v.naturalHeight ? v.naturalHeight / v.naturalWidth : null;
 
   function applyImage(up: UploadedImage) {
-    const width = Math.min(props.maxWidth, up.width, v.src ? v.width : props.maxWidth);
-    props.onChange({ ...v, src: up.src, naturalWidth: up.width, naturalHeight: up.height, width: Math.max(16, width) });
+    const next = placeImage(v, up, props.maxWidth);
+    props.onChange(next);
     props.onUploaded();
-    if (up.width < width * 2) toast.message("Tip: images at 2× display width look sharper on high-DPI screens.");
+    if (isLowRes(next)) toast.message(LOW_RES_TIP);
   }
 
   async function onFile(file: File | undefined) {
