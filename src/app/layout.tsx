@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 const bungee = Bungee({ variable: "--font-display", weight: "400", subsets: ["latin"] });
 
 const TITLE = "OUTLOOKSUCKS.email: free Outlook email template builder";
-const DESCRIPTION = "Build a good-looking email by dragging blocks, then download an .oft template that opens in Outlook. Free, no account needed.";
+const DESCRIPTION = "Stop sending boring internal emails. Build one by dragging blocks, then download an .oft template that opens in Outlook. Free, no account needed.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
