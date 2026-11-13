@@ -22,6 +22,8 @@ export interface ClientConfig extends ServerConfig {
   workspaceId: string | null;
   /** Changes whenever the Library in view changes; use it as a React key so screens reload their lists. */
   spaceKey: string;
+  /** AI is switched on for the site and the only thing missing is signing in. False when AI is on, and when the site has no AI at all. */
+  aiNeedsSignIn: boolean;
   /** Auth state is known; wait for this before choosing a store. */
   ready: boolean;
 }
@@ -36,7 +38,7 @@ export function ConfigProvider({ value, userId = null, workspaceId = null, child
       </AuthAwareConfig>
     );
   }
-  return <Ctx.Provider value={{ ...value, authAvailable: false, userId: null, workspaceId: null, spaceKey: "browser", ready: true }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ ...value, authAvailable: false, userId: null, workspaceId: null, spaceKey: "browser", aiNeedsSignIn: false, ready: true }}>{children}</Ctx.Provider>;
 }
 
 function AuthAwareConfig({ server, serverUserId, serverWorkspaceId, children }: { server: ServerConfig; serverUserId: string | null; serverWorkspaceId: string | null; children: React.ReactNode }) {
@@ -49,7 +51,7 @@ function AuthAwareConfig({ server, serverUserId, serverWorkspaceId, children }: 
   const value = useMemo<ClientConfig>(
     () =>
       userId
-        ? { ...server, authAvailable: true, userId, workspaceId, spaceKey: workspaceId ?? `me:${userId}`, ready: true }
+        ? { ...server, authAvailable: true, userId, workspaceId, spaceKey: workspaceId ?? `me:${userId}`, aiNeedsSignIn: false, ready: true }
         : {
             ...server,
             mode: "demo",
@@ -58,6 +60,7 @@ function AuthAwareConfig({ server, serverUserId, serverWorkspaceId, children }: 
             userId: null,
             workspaceId: null,
             spaceKey: "browser",
+            aiNeedsSignIn: server.ai.enabled,
             ready: true,
             ai: server.ai.enabled ? { enabled: false, reason: "Sign in to use AI. Everything else works without an account." } : server.ai,
           },

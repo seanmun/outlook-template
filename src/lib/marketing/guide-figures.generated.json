@@ -2,18 +2,18 @@
  "start": {
   "src": "/guide/start.png",
   "width": 864,
-  "height": 764,
+  "height": 503,
   "alt": "The start page: a Blank email tile followed by templates with previews.",
   "callouts": [
    {
     "key": "blank",
     "x": 14.5,
-    "y": 32.14
+    "y": 48.84
    },
    {
     "key": "template",
     "x": 38.17,
-    "y": 32.14
+    "y": 48.84
    }
   ]
  },
@@ -240,7 +240,7 @@
    },
    {
     "key": "background",
-    "x": 57.83,
+    "x": 36.5,
     "y": 29.17
    }
   ]

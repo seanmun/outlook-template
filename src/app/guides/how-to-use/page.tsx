@@ -95,7 +95,8 @@ export default function Page() {
         <Prose>
           <p>
             Go to <Link href="/new">Start an email</Link>. Pick a template to begin with something finished, or the blank email to build your own. Either way
-            everything can be changed afterwards.
+            everything can be changed afterwards. Three templates show at first; &ldquo;View more templates&rdquo; shows the rest. At the top of that page
+            you can also describe the email in words and let AI build a first draft, when AI is switched on for your account.
           </p>
         </Prose>
         <Figure
@@ -232,7 +233,7 @@ export default function Page() {
           name="download"
           notes={[
             ["windows", "Outlook on Windows", "Downloads a file ending in .oft."],
-            ["mac", "Outlook on Mac", "Downloads a file ending in .emltpl. This one is new and still being tested."],
+            ["mac", "Outlook on Mac", "Downloads a file ending in .emltpl."],
             ["both", "Both", "One zip with both files and a short note saying which is which. Handy when you are passing the email on."],
             ["go", "Download", "Then open the file. Outlook starts a new email with everything in place. Add who it is going to, and send it to yourself first to check it."],
           ]}

@@ -49,8 +49,6 @@ const BOTH_README = [
   "Each file only opens on its own kind of computer. If you are",
   "passing this on, give each person the file that matches theirs.",
   "",
-  "The Mac file is new and still being tested.",
-  "",
 ].join("\r\n");
 
 /** Repacks the server's ZIP for a visitor who wants both: the two templates and a plain note, without the developer README. */
@@ -152,7 +150,7 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                 {(
                   [
                     ["windows", "Outlook on Windows", ""],
-                    ["mac", "Outlook on Mac", "New, still being tested"],
+                    ["mac", "Outlook on Mac", ""],
                     ["both", "Both", "One zip with both files"],
                   ] as const
                 ).map(([id, label, note]) => (

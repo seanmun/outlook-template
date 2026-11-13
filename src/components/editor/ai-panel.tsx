@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
+import { clearAiHandoff, peekAiHandoff } from "@/lib/client/ai-handoff";
 import { toast } from "sonner";
 import { Loader2, Send, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -40,12 +42,31 @@ export function AiPanel() {
   const [chat, setChat] = useState<ChatEntry[]>([]);
   const [pending, setPending] = useState(false);
   const [stale, setStale] = useState<StaleResult | null>(null);
-  const [comp, setComp] = useState<CompAttachment | null>(null);
-  const [images, setImages] = useState<EmailImageAttachment[]>([]);
+  // A request typed on the start page arrives with the email: its comp and pictures fill the boxes, and it is sent straight away.
+  const emailId = useParams<{ id: string }>().id;
+  const [handoff] = useState(() => peekAiHandoff(emailId));
+  const [comp, setComp] = useState<CompAttachment | null>(handoff?.comp ?? null);
+  const [images, setImages] = useState<EmailImageAttachment[]>(handoff?.images ?? []);
+  const handoffSent = useRef(false);
+  /** Always the newest `send`, so the hand-off effect can call it without re-running when it changes. */
+  const sendRef = useRef<(text: string) => Promise<void>>(async () => {});
   const latest = useRef(state);
   useEffect(() => {
     latest.current = state;
   }, [state]);
+
+  useEffect(() => {
+    if (!handoff || handoffSent.current || !config.ai.enabled) return;
+    // After this render, so the request goes out with the panel fully set up. The "sent" mark is set
+    // only when it really goes: in development React runs effects twice and cancels the first timer.
+    const t = setTimeout(() => {
+      if (handoffSent.current) return;
+      handoffSent.current = true;
+      clearAiHandoff(emailId);
+      void sendRef.current(handoff.instruction);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [handoff, emailId, config.ai.enabled]);
 
   if (!config.ai.enabled) {
     return (
@@ -126,6 +147,8 @@ export function AiPanel() {
       setPending(false);
     }
   }
+
+  sendRef.current = send;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
