@@ -108,7 +108,8 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               {["Download the file and open it. Outlook opens a new email.", "Add who it is going to.", "Send it to yourself first to check it, then send it for real."].map((step, n) => (
                 <li key={step} className="flex gap-3">
                   <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-xs font-semibold text-white">{n + 1}</span>
-                  <span className="pt-0.5">{step}</span>
+                  {/* The last step is the one people skip and regret, so it stands out. */}
+                  <span className={`pt-0.5 ${n === 2 ? "font-bold text-red-600" : ""}`}>{step}</span>
                 </li>
               ))}
             </ol>
