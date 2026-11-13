@@ -84,7 +84,8 @@ export const EXAMPLES: EmailExample[] = [
           add("text", { headline: title, body }, { align: "center", headlineSize: 16, padding: { top: 0, right: 0, bottom: 0, left: 0 } }, { parentId: "steps", column }),
         ]),
         add("text", { headline: "", body: "Still having trouble? Contact the service desk." }, { align: "left" }),
-        add("cta", { label: "Check service status" }, { align: "left" }),
+        // Microsoft's public service health page for Microsoft 365, which covers Outlook.
+        add("cta", { label: "Check service status", url: "https://status.cloud.microsoft/m365" }, { align: "left" }),
         add("divider"),
         add("footer", { body: "Your company · IT Service Desk\n\nCall the service desk or reply to this email." }),
       ], ["outage-banner", "outage-step-restart", "outage-step-outbox", "outage-step-resend"]),
