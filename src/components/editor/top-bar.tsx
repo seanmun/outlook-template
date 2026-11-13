@@ -96,7 +96,7 @@ export function TopBar({ onRetrySave, saveNow }: { onRetrySave: () => void; save
           {leaving ? <Loader2 className="animate-spin" /> : <LibraryBig />} Library
         </Button>
         <Button size="sm" onClick={() => setExportOpen(true)}>
-          <Download /> Export
+          <Download /> Download
         </Button>
       </AppHeader>
       <ExportDialog open={exportOpen} onOpenChange={setExportOpen} />

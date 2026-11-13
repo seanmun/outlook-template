@@ -20,11 +20,23 @@ function StatusPill({ label, value, good }: { label: string; value: string; good
   );
 }
 
+/** The format picker and verification badges are for whoever is developing the app, never for visitors. */
+const DEVELOPER_VIEW = process.env.NODE_ENV === "development";
+
+/** Pulls the one template out of the ZIP the server sends, so visitors get a file they can open straight away. */
+async function templateFrom(zip: Blob): Promise<{ name: string; file: Blob } | null> {
+  const { default: JSZip } = await import("jszip");
+  const archive = await JSZip.loadAsync(zip);
+  const entry = Object.values(archive.files).find((f) => !f.dir && f.name.toLowerCase().endsWith(".oft"));
+  return entry ? { name: entry.name.split("/").pop()!, file: new Blob([await entry.async("arraybuffer")], { type: "application/vnd.ms-outlook" }) } : null;
+}
+
 export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const config = useConfig();
   const { state } = useEditor();
   const issues = useMemo(() => (open ? findContentIssues(state.doc) : []), [open, state.doc]);
   const [selected, setSelected] = useState<Set<ExporterId>>(() => new Set(config.exporters.filter((e) => e.availability.enabled && !e.developmentOnly).map((e) => e.id)));
+  const [developerView, setDeveloperView] = useState(false);
   const [busy, setBusy] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
 
@@ -39,7 +51,8 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   async function run() {
     setBusy(true);
     try {
-      const formats = [...selected];
+      // Visitors always get the Outlook template. Other formats are only offered in the developer view.
+      const formats: ExporterId[] = developerView ? [...selected] : ["oft"];
       const body =
         config.mode === "demo"
           ? { document: state.doc, formats, localImages: await localImagesForExport(state.doc) }
@@ -49,8 +62,12 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
         const err = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(err.error ?? `Export failed (${res.status})`);
       }
-      const blob = await res.blob();
-      const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? "email.zip";
+      const zip = await res.blob();
+      const zipName = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? "email.zip";
+      // One template: hand over the .oft itself, not a ZIP to unpack. If that fails for any reason, the ZIP still works.
+      const single = developerView ? null : await templateFrom(zip).catch(() => null);
+      const blob = single?.file ?? zip;
+      const name = single?.name ?? zipName;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -66,13 +83,64 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     }
   }
 
-  const needsAck = issues.length > 0 && !acknowledged;
+  const needsAck = developerView && issues.length > 0 && !acknowledged;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) setAcknowledged(false); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        onOpenChange(o);
+        if (!o) {
+          setAcknowledged(false);
+          setDeveloperView(false);
+        }
+      }}
+    >
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+        {!developerView ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Download your email</DialogTitle>
+              <DialogDescription>You get one file, an Outlook template. Open it and Outlook starts a new email with everything in place.</DialogDescription>
+            </DialogHeader>
+
+            <ol className="space-y-2 text-sm text-neutral-700">
+              {["Download the file and open it. Outlook opens a new email.", "Add who it is going to.", "Send it to yourself first to check it, then send it for real."].map((step, n) => (
+                <li key={step} className="flex gap-3">
+                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-xs font-semibold text-white">{n + 1}</span>
+                  <span className="pt-0.5">{step}</span>
+                </li>
+              ))}
+            </ol>
+
+            {issues.length > 0 && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <div className="flex items-center gap-1.5 font-medium">
+                  <AlertTriangle className="size-4" /> Worth fixing before you send
+                </div>
+                <ul className="mt-1 list-disc pl-5 text-xs">
+                  {issues.slice(0, 8).map((i, n) => (
+                    <li key={n}>{i.message}</li>
+                  ))}
+                  {issues.length > 8 && <li>…and {issues.length - 8} more</li>}
+                </ul>
+                <p className="mt-2 text-xs">You can still download now and fix these later.</p>
+              </div>
+            )}
+
+            <p className="text-xs text-neutral-500">
+              For Outlook on Windows. Outlook for Mac cannot open this kind of file. Your pictures are saved inside the file, so they always show.
+            </p>
+            {DEVELOPER_VIEW && (
+              <button type="button" className="self-start text-xs text-neutral-500 underline" onClick={() => setDeveloperView(true)}>
+                Developer view: formats and verification status
+              </button>
+            )}
+          </>
+        ) : (
+          <>
         <DialogHeader>
-          <DialogTitle>Export</DialogTitle>
+          <DialogTitle>Export (developer view)</DialogTitle>
           <DialogDescription>Downloads a ZIP with the selected formats and a README with instructions and verification status.</DialogDescription>
         </DialogHeader>
 
@@ -125,6 +193,9 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
           Images are embedded in the files (inline attachments), so recipients never load them from this app. Always send yourself a test from Outlook first.
         </p>
 
+          </>
+        )}
+
         <TextAd placement="export-dialog" />
 
         <DialogFooter>
@@ -132,7 +203,7 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
             Cancel
           </Button>
           <Button disabled={busy || selected.size === 0 || needsAck} onClick={run}>
-            {busy ? <Loader2 className="animate-spin" /> : <Download />} Download ZIP
+            {busy ? <Loader2 className="animate-spin" /> : <Download />} {developerView ? "Download ZIP" : "Download"}
           </Button>
         </DialogFooter>
       </DialogContent>
