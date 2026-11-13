@@ -3,7 +3,7 @@ import * as CFB from "cfb";
 import MsgReader from "@kenjiuno/msgreader";
 import JSZip from "jszip";
 import { compareCfbNames, writeCfb } from "./cfb-writer";
-import { CLSID_OFT_TEMPLATE, writeMsg } from "./msg-writer";
+import { asciiHtml, CLSID_OFT_TEMPLATE, writeMsg } from "./msg-writer";
 import { htmlToEncapsulatedRtf, rtfStream } from "./rtf-body";
 import { encodeHeaderValue, writeMime } from "./mime-writer";
 import { buildExportPackage, MissingImageError, prepareExportInput, sniffImageType, type ImageLoader } from "./pipeline";
@@ -82,7 +82,7 @@ describe("OFT (MS-OXMSG) writer", () => {
     expect(data.subject).toBe("Town hall – ünïcødé ✓");
     expect(data.messageClass).toBe("IPM.Note");
     expect(data.body).toBe("Hello ünïcødé ✓");
-    expect(new TextDecoder().decode(data.html as Uint8Array)).toBe(html);
+    expect(new TextDecoder().decode(data.html as Uint8Array)).toBe(asciiHtml(html));
     expect(data.attachments).toHaveLength(2);
     expect(data.attachments![0].pidContentId).toBe("img1@test");
     expect(data.attachments![0].attachmentHidden).toBe(true);
@@ -91,6 +91,22 @@ describe("OFT (MS-OXMSG) writer", () => {
 
     const cfb = CFB.read(out, { type: "array" });
     expect(cfb.FileIndex[0].clsid.toUpperCase()).toBe("46F0060000000000C000000000000046");
+  });
+});
+
+describe("special characters in the Windows template", () => {
+  it("writes them as numbered entities, so Outlook cannot misread them", () => {
+    expect(asciiHtml("<p>can\u2019t \u00b7 caf\u00e9 \u{1f600}</p>")).toBe("<p>can&#8217;t &#183; caf&#233; &#128512;</p>");
+  });
+
+  it("leaves no raw special character in either body format", () => {
+    const body = "<html><body><p>can\u2019t \u00b7 done</p></body></html>";
+    for (const kind of ["html", "rtf"] as const) {
+      const bytes = writeMsg({ subject: "S", html: body, plainText: "p", images: [], body: kind });
+      const text = new TextDecoder("latin1").decode(bytes);
+      expect(text).toContain("can&#8217;t &#183; done");
+      expect(text).not.toContain("\u00e2\u0080\u0099");
+    }
   });
 });
 

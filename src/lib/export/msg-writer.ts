@@ -54,6 +54,8 @@ export interface MsgInput {
    * "rtf" is experimental: the HTML wrapped in RTF, the way Outlook stores a body it saved itself.
    */
   body?: "html" | "rtf";
+  /** PidTagInternetCodepage. Defaults to UTF-8 (65001); 20127 (plain ASCII) is what other tools' templates carry. */
+  internetCodepage?: number;
   /** Defaults to the OFT template CLSID. */
   rootClsid?: string;
   now?: Date;
@@ -125,9 +127,19 @@ function extensionOf(filename: string): string {
   return m ? m[0].toLowerCase() : "";
 }
 
+/**
+ * Writes every character outside plain ASCII as a numbered HTML entity (’ becomes &#8217;).
+ * Classic Outlook for Windows misreads or drops those characters in a template body however the
+ * body is stored (seen in a real test, 2026-11-13); entities survive both storage formats.
+ */
+export function asciiHtml(html: string): string {
+  return html.replace(/[\u007f-\uffff]/gu, (ch) => `&#${ch.codePointAt(0)};`).replace(/[\u{10000}-\u{10ffff}]/gu, (ch) => `&#${ch.codePointAt(0)};`);
+}
+
 export function writeMsg(input: MsgInput): Uint8Array {
   const now = input.now ?? new Date();
   const encoder = new TextEncoder();
+  const html = asciiHtml(input.html);
 
   const messageProps: Prop[] = [
     { id: 0x001a, type: PT_UNICODE, value: "IPM.Note" }, // PidTagMessageClass
@@ -136,12 +148,16 @@ export function writeMsg(input: MsgInput): Uint8Array {
     { id: 0x1000, type: PT_UNICODE, value: input.plainText }, // PidTagBody
     ...(input.body === "rtf"
       ? ([
-          { id: 0x1009, type: PT_BINARY, value: rtfStream(htmlToEncapsulatedRtf(input.html)) }, // PidTagRtfCompressed
+          { id: 0x1009, type: PT_BINARY, value: rtfStream(htmlToEncapsulatedRtf(html)) }, // PidTagRtfCompressed
           { id: 0x0e1f, type: PT_BOOLEAN, value: true }, // PidTagRtfInSync
         ] satisfies Prop[])
-      : ([{ id: 0x1013, type: PT_BINARY, value: encoder.encode(input.html) }] satisfies Prop[])), // PidTagHtml
+      : ([{ id: 0x1013, type: PT_BINARY, value: encoder.encode(html) }] satisfies Prop[])), // PidTagHtml
     { id: 0x1016, type: PT_INT32, value: NATIVE_BODY_HTML }, // PidTagNativeBody
-    { id: 0x3fde, type: PT_INT32, value: CODEPAGE_UTF8 }, // PidTagInternetCodepage
+    { id: 0x3fde, type: PT_INT32, value: input.internetCodepage ?? CODEPAGE_UTF8 }, // PidTagInternetCodepage
+    // Without a language and a text code page Outlook guesses, and can guess Japanese: a curly
+    // apostrophe then swallows the next letter and shows as a Chinese character (seen 2026-11-13).
+    { id: 0x3ff1, type: PT_INT32, value: 1033 }, // PidTagMessageLocaleId (English, United States)
+    { id: 0x3ffd, type: PT_INT32, value: 1252 }, // PidTagMessageCodepage (Western European)
     { id: 0x0e07, type: PT_INT32, value: MSGFLAG_UNSENT }, // PidTagMessageFlags
     { id: 0x340d, type: PT_INT32, value: STORE_UNICODE_OK | STORE_HTML_OK }, // PidTagStoreSupportMask
     { id: 0x0e1b, type: PT_BOOLEAN, value: input.images.length > 0 }, // PidTagHasAttachments

@@ -88,6 +88,7 @@ export function AiAttachments(props: {
   async function addComp(files: File[]) {
     const file = files[0];
     if (!file) return;
+    if (/\.(psd|psb|fig)$/i.test(file.name)) return void toast.error("Figma and Photoshop files are coming soon. For now, export the design as an image or PDF and add that.");
     if (!COMP_TYPES.split(",").includes(file.type)) return void toast.error("A comp must be a PNG, JPEG, GIF, WebP image or a PDF.");
     if (file.size > MAX_REFERENCE_BYTES) return void toast.error(`A comp must be ${MAX_REFERENCE_BYTES / 1024 / 1024} MB or smaller.`);
     if (props.comp?.previewUrl) URL.revokeObjectURL(props.comp.previewUrl);
@@ -118,7 +119,7 @@ export function AiAttachments(props: {
 
   return (
     <div className="mb-2 grid grid-cols-2 gap-2">
-      <DropZone icon={<ScanSearch className="size-4" />} title="Design comp" hint="For the AI to copy layout and wording. Image or PDF." accept={COMP_TYPES} onFiles={addComp}>
+      <DropZone icon={<ScanSearch className="size-4" />} title="Design comp" hint="For the AI to copy layout and wording. Image or PDF. Figma and Photoshop files are coming soon." accept={COMP_TYPES} onFiles={addComp}>
         {props.comp && (
           <div className="mt-2 flex items-center gap-1.5 rounded bg-neutral-100 p-1">
             <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded bg-white text-neutral-500">
