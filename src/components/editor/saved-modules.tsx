@@ -15,7 +15,7 @@ const THUMB_MAX_HEIGHT = 120;
 const PAGE_PADDING = 24;
 
 /** A small live picture of a saved module, drawn by the same renderer as the email. */
-function Thumbnail({ html }: { html: string }) {
+export function Thumbnail({ html }: { html: string }) {
   const [height, setHeight] = useState(60);
   const scale = THUMB_WIDTH / CONTENT_WIDTH;
   const shown = Math.min(THUMB_MAX_HEIGHT, height * scale);
@@ -102,7 +102,7 @@ export function SavedModules({ blockDest, rowDest }: { blockDest: Destination; r
               <SavedCard key={item.id} item={item} dest={item.module.type === COLUMNS_TYPE ? rowDest : blockDest} />
             ))}
           </ul>
-          <p className="mt-1.5 text-[11px] text-neutral-500">Saved in this browser.</p>
+          <p className="mt-1.5 text-[11px] text-neutral-500">{saved.inAccount ? "Saved to your account." : "Saved in this browser."}</p>
         </>
       )}
     </section>

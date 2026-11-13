@@ -3,13 +3,15 @@ import JSZip from "jszip";
 import { sampleEmailDocument } from "@/lib/email/starter";
 import { sampleBytes } from "@/lib/email/samples";
 import type { EmailDocument } from "@/lib/email/document";
+import { createSavedModule, deleteSavedModule, listSavedModules, MAX_SAVED_MODULES } from "./handlers";
 import { createEmail, deleteEmail, exportForDemo, exportForUser, getEmail, listAssets, listEmails, readAsset, updateEmail, uploadAsset, type HandlerContext } from "./handlers";
-import { MemoryAssetRepo, MemoryEmailRepo } from "./memory-repo";
+import { MemoryAssetRepo, MemoryEmailRepo, MemorySavedModuleRepo } from "./memory-repo";
 
 function setup() {
   const emails = new MemoryEmailRepo();
   const assets = new MemoryAssetRepo();
-  const as = (userId: string | null): HandlerContext => ({ userId, emails, assets });
+  const savedModules = new MemorySavedModuleRepo();
+  const as = (userId: string | null): HandlerContext => ({ userId, emails, assets, savedModules });
   return { emails, assets, as };
 }
 
@@ -131,5 +133,66 @@ describe("export endpoint failures", () => {
   it("rejects unknown formats", async () => {
     const r = await exportForDemo({ document: sampleEmailDocument("harbor-pine"), formats: ["docx"] });
     expect(r.status).toBe(400);
+  });
+});
+
+describe("saved modules", () => {
+  const block = () => sampleEmailDocument("harbor-pine").modules.find((m) => m.type === "text")!;
+  const body = (over: Record<string, unknown> = {}) => ({ id: crypto.randomUUID(), name: "Intro block", brandId: "harbor-pine", module: block(), ...over });
+  const listFor = async (ctx: HandlerContext) => ((await (await listSavedModules(ctx)).json()) as { savedModules: { id: string; name: string; savedAt: string; module: { type: string } }[] }).savedModules;
+
+  it("needs a signed-in user", async () => {
+    const { as } = setup();
+    expect((await listSavedModules(as(null))).status).toBe(401);
+    expect((await createSavedModule(as(null), body())).status).toBe(401);
+    expect((await deleteSavedModule(as(null), crypto.randomUUID())).status).toBe(401);
+  });
+
+  it("saves, lists and deletes for the owner only", async () => {
+    const { as } = setup();
+    const item = body();
+    expect((await createSavedModule(as("alice"), item)).status).toBe(201);
+    const mine = await listFor(as("alice"));
+    expect(mine).toHaveLength(1);
+    expect(mine[0]).toMatchObject({ id: item.id, name: "Intro block", module: { type: "text" } });
+    expect(mine[0].savedAt).toBeTruthy();
+    expect(await listFor(as("bob"))).toHaveLength(0);
+    expect((await deleteSavedModule(as("bob"), item.id)).status).toBe(404);
+    expect((await deleteSavedModule(as("alice"), item.id)).status).toBe(200);
+    expect(await listFor(as("alice"))).toHaveLength(0);
+  });
+
+  it("accepts the same id twice from its owner and refuses it from anyone else", async () => {
+    const { as } = setup();
+    const item = body();
+    expect((await createSavedModule(as("alice"), item)).status).toBe(201);
+    expect((await createSavedModule(as("alice"), item)).status).toBe(201);
+    expect(await listFor(as("alice"))).toHaveLength(1);
+    expect((await createSavedModule(as("bob"), item)).status).toBe(409);
+  });
+
+  it("rejects malformed modules, bad ids and images that are not the user's", async () => {
+    const { as } = setup();
+    expect((await createSavedModule(as("alice"), body({ id: "nope" }))).status).toBe(400);
+    expect((await createSavedModule(as("alice"), body({ name: "" }))).status).toBe(400);
+    expect((await createSavedModule(as("alice"), body({ module: { type: "text" } }))).status).toBe(400);
+    expect((await createSavedModule(as("alice"), body({ module: { ...block(), type: "no-such-module" } }))).status).toBe(400);
+    const bobsImage = await uploadFor(as("bob"));
+    const hero = withAsset(sampleEmailDocument("harbor-pine"), bobsImage).modules.find((m) => m.type === "hero")!;
+    expect((await createSavedModule(as("alice"), body({ module: hero }))).status).toBe(400);
+    expect((await createSavedModule(as("bob"), body({ module: hero }))).status).toBe(201);
+  });
+
+  it("saves a whole row of columns", async () => {
+    const { as } = setup();
+    const { EXAMPLES } = await import("@/lib/email/examples");
+    const row = EXAMPLES.find((e) => e.id === "newsletter")!.build().modules.find((m) => m.type === "columns")!;
+    expect((await createSavedModule(as("alice"), body({ brandId: "lumen-labs", module: row }))).status).toBe(201);
+  });
+
+  it("stops at the limit", async () => {
+    const { as } = setup();
+    for (let i = 0; i < MAX_SAVED_MODULES; i++) expect((await createSavedModule(as("alice"), body())).status).toBe(201);
+    expect((await createSavedModule(as("alice"), body())).status).toBe(409);
   });
 });

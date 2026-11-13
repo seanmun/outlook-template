@@ -2,7 +2,7 @@ import "server-only";
 import { auth } from "@clerk/nextjs/server";
 import { appMode } from "./config";
 import { errorResponse, type HandlerContext } from "./handlers";
-import { SupabaseAssetRepo, SupabaseEmailRepo, supabaseForUser } from "./supabase-repo";
+import { SupabaseAssetRepo, SupabaseEmailRepo, SupabaseSavedModuleRepo, supabaseForUser } from "./supabase-repo";
 
 /** Builds the per-request context in production mode. Returns a Response when the request cannot proceed. */
 export async function productionContext(): Promise<HandlerContext | Response> {
@@ -11,7 +11,7 @@ export async function productionContext(): Promise<HandlerContext | Response> {
   }
   const { userId, getToken } = await auth();
   const db = supabaseForUser(() => getToken());
-  return { userId: userId ?? null, emails: new SupabaseEmailRepo(db), assets: new SupabaseAssetRepo(db) };
+  return { userId: userId ?? null, emails: new SupabaseEmailRepo(db), assets: new SupabaseAssetRepo(db), savedModules: new SupabaseSavedModuleRepo(db) };
 }
 
 export async function readJson(req: Request): Promise<unknown> {

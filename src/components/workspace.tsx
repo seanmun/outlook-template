@@ -9,6 +9,7 @@ import { useConfig } from "@/lib/client/config";
 import { storesFor, type DraftSummary } from "@/lib/client/stores";
 import { BRANDS, getBrand } from "@/lib/email/brands";
 import { newEmailDocument, sampleEmailDocument } from "@/lib/email/starter";
+import { WorkspaceLibrary } from "./workspace-library";
 
 /** Where an email starts: pick a brand and a starting point, or reopen a draft. */
 export function Workspace() {
@@ -40,7 +41,7 @@ export function Workspace() {
   }
 
   async function remove(id: string) {
-    if (!confirm("Delete this draft? This cannot be undone.")) return;
+    if (!confirm("Delete this email? This cannot be undone.")) return;
     try {
       await drafts.remove(id);
       setList((l) => l?.filter((x) => x.id !== id) ?? null);
@@ -85,11 +86,14 @@ export function Workspace() {
         </section>
 
         <section>
-          <h2 className="mb-2 text-sm font-semibold text-neutral-700">Drafts</h2>
+          <h2 className="mb-1 text-sm font-semibold text-neutral-700">Your emails{list && list.length > 0 ? ` (${list.length})` : ""}</h2>
+          <p className="mb-2 text-xs text-neutral-500">
+            Every email saves itself as you work. {config.mode === "production" ? "Saved to your account." : "Saved in this browser only."}
+          </p>
           {list === null ? (
             <p className="text-sm text-neutral-500">Loading…</p>
           ) : list.length === 0 ? (
-            <p className="text-sm text-neutral-500">No drafts yet.</p>
+            <p className="text-sm text-neutral-500">No emails yet. Start one above.</p>
           ) : (
             <ul className="divide-y rounded-lg border bg-white">
               {list.map((d) => (
@@ -100,7 +104,7 @@ export function Workspace() {
                       {getBrand(d.brandId)?.name ?? d.brandId} · {d.subject || "No subject"} · {new Date(d.updatedAt).toLocaleString()}
                     </div>
                   </button>
-                  <Button variant="ghost" size="icon" aria-label="Delete draft" onClick={() => remove(d.id)}>
+                  <Button variant="ghost" size="icon" aria-label="Delete email" onClick={() => remove(d.id)}>
                     <Trash2 />
                   </Button>
                 </li>
@@ -108,6 +112,8 @@ export function Workspace() {
             </ul>
           )}
         </section>
+
+        <WorkspaceLibrary />
     </>
   );
 }

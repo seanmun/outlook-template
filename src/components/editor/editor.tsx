@@ -147,7 +147,8 @@ function LoadedEditor({
   const change = useCallback<EditorCtx["change"]>((update, opts) => dispatch({ type: "change", update, ...opts }), []);
 
   // Saved modules reference the account's own images, so each account (and "no account") keeps its own list.
-  const saved = useSavedModules(useConfig().userId ?? "local");
+  const account = useConfig();
+  const saved = useSavedModules(account.userId ?? "local", account.mode === "production" && !!account.userId);
 
   const ctx: EditorCtx = { state, dispatch, change, brand, assets: stores.assets, saveStatus, saveError, assetsVersion, refreshAssets, saved };
 

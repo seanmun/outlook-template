@@ -8,8 +8,8 @@ import "server-only";
  * the explicit owner_id filters below are defence in depth.
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { EmailDocument } from "@/lib/email/document";
-import type { AssetRecord, AssetRepo, EmailRecord, EmailRepo, NewAsset } from "./repo";
+import type { EmailDocument, ModuleInstance } from "@/lib/email/document";
+import type { AssetRecord, AssetRepo, EmailRecord, EmailRepo, NewAsset, SavedModuleRecord, SavedModuleRepo } from "./repo";
 
 export const ASSET_BUCKET = "email-assets";
 
@@ -178,5 +178,45 @@ export class SupabaseAssetRepo implements AssetRepo {
     const { data, error } = await this.db.from("assets").select("id").in("id", ids).eq("owner_id", ownerId);
     if (error) fail("check assets", error);
     return new Set((data ?? []).map((r: { id: string }) => r.id));
+  }
+}
+
+interface SavedModuleRow {
+  id: string;
+  owner_id: string;
+  name: string;
+  brand_id: string;
+  module: ModuleInstance;
+  created_at: string;
+}
+const toSavedModule = (r: SavedModuleRow): SavedModuleRecord => ({ id: r.id, ownerId: r.owner_id, name: r.name, brandId: r.brand_id, module: r.module, createdAt: r.created_at });
+
+export class SupabaseSavedModuleRepo implements SavedModuleRepo {
+  constructor(private db: SupabaseClient) {}
+
+  async list(ownerId: string) {
+    const { data, error } = await this.db.from("saved_modules").select("*").eq("owner_id", ownerId).order("created_at", { ascending: false }).limit(200);
+    if (error) fail("list saved modules", error);
+    return (data ?? []).map((r) => toSavedModule(r as SavedModuleRow));
+  }
+
+  async create(ownerId: string, item: Pick<SavedModuleRecord, "id" | "name" | "brandId" | "module">) {
+    const { data, error } = await this.db
+      .from("saved_modules")
+      .insert({ id: item.id, owner_id: ownerId, name: item.name, brand_id: item.brandId, module: item.module })
+      .select("*")
+      .single();
+    if (!error) return toSavedModule(data as SavedModuleRow);
+    // 23505 = the id is already stored. Ours: return it. Someone else's: RLS hides it, so this reads as null.
+    if (error.code !== "23505") fail("save module", error);
+    const again = await this.db.from("saved_modules").select("*").eq("id", item.id).eq("owner_id", ownerId).maybeSingle();
+    if (again.error) fail("read saved module", again.error);
+    return again.data ? toSavedModule(again.data as SavedModuleRow) : null;
+  }
+
+  async remove(ownerId: string, id: string) {
+    const { data, error } = await this.db.from("saved_modules").delete().eq("id", id).eq("owner_id", ownerId).select("id");
+    if (error) fail("delete saved module", error);
+    return (data ?? []).length > 0;
   }
 }

@@ -1,6 +1,6 @@
 /** In-memory repositories with the same ownership semantics as the Supabase RLS policies. Used by tests. */
 import type { EmailDocument } from "@/lib/email/document";
-import type { AssetRecord, AssetRepo, EmailRecord, EmailRepo, NewAsset } from "./repo";
+import type { AssetRecord, AssetRepo, EmailRecord, EmailRepo, NewAsset, SavedModuleRecord, SavedModuleRepo } from "./repo";
 
 export class MemoryEmailRepo implements EmailRepo {
   rows = new Map<string, EmailRecord>();
@@ -53,5 +53,24 @@ export class MemoryAssetRepo implements AssetRepo {
   }
   async existing(ownerId: string, ids: string[]) {
     return new Set(ids.filter((id) => this.rows.get(id)?.record.ownerId === ownerId));
+  }
+}
+
+export class MemorySavedModuleRepo implements SavedModuleRepo {
+  rows = new Map<string, SavedModuleRecord>();
+  async list(ownerId: string) {
+    return [...this.rows.values()].filter((r) => r.ownerId === ownerId).reverse();
+  }
+  async create(ownerId: string, item: Pick<SavedModuleRecord, "id" | "name" | "brandId" | "module">) {
+    const existing = this.rows.get(item.id);
+    if (existing) return existing.ownerId === ownerId ? structuredClone(existing) : null;
+    const rec: SavedModuleRecord = { ...structuredClone(item), ownerId, createdAt: new Date().toISOString() };
+    this.rows.set(rec.id, rec);
+    return structuredClone(rec);
+  }
+  async remove(ownerId: string, id: string) {
+    const r = this.rows.get(id);
+    if (!r || r.ownerId !== ownerId) return false;
+    return this.rows.delete(id);
   }
 }

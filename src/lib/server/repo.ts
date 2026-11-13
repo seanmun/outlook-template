@@ -1,4 +1,4 @@
-import type { EmailDocument } from "@/lib/email/document";
+import type { EmailDocument, ModuleInstance } from "@/lib/email/document";
 
 export interface EmailRecord {
   id: string;
@@ -52,6 +52,23 @@ export interface AssetRepo {
   list(ownerId: string): Promise<AssetRecord[]>;
   /** Returns the subset of ids that exist and belong to ownerId. */
   existing(ownerId: string, ids: string[]): Promise<Set<string>>;
+}
+
+export interface SavedModuleRecord {
+  id: string;
+  ownerId: string;
+  name: string;
+  brandId: string;
+  module: ModuleInstance;
+  createdAt: string;
+}
+
+export interface SavedModuleRepo {
+  /** The owner's saved modules, newest first. */
+  list(ownerId: string): Promise<SavedModuleRecord[]>;
+  /** Saving the same id again is not an error; the stored copy is returned. Null when the id belongs to someone else. */
+  create(ownerId: string, item: Pick<SavedModuleRecord, "id" | "name" | "brandId" | "module">): Promise<SavedModuleRecord | null>;
+  remove(ownerId: string, id: string): Promise<boolean>;
 }
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

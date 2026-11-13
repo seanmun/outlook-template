@@ -12,12 +12,13 @@ import { buildExportPackage, MissingImageError, type ImageLoader } from "@/lib/e
 import { ExportFailedError, ExporterUnavailableError, type ExporterId } from "@/lib/export/types";
 import { CfbTooLargeError } from "@/lib/export/cfb-writer";
 import { MAX_UPLOAD_BYTES, readImageInfo } from "./image-info";
-import { UUID_RE, type AssetRepo, type EmailRepo } from "./repo";
+import { UUID_RE, type AssetRepo, type EmailRepo, type SavedModuleRepo } from "./repo";
 
 export interface HandlerContext {
   userId: string | null;
   emails: EmailRepo;
   assets: AssetRepo;
+  savedModules: SavedModuleRepo;
 }
 
 export function json(data: unknown, status = 200): Response {
@@ -88,6 +89,41 @@ export async function deleteEmail(ctx: HandlerContext, id: string) {
   if (!ctx.userId) return unauthorized();
   if (!UUID_RE.test(id)) return notFound();
   return (await ctx.emails.remove(ctx.userId, id)) ? json({ ok: true }) : notFound();
+}
+
+/* ---------------- Saved modules ---------------- */
+
+/** Keep in step with MAX_SAVED_MODULES in lib/client/saved-modules.ts. */
+export const MAX_SAVED_MODULES = 40;
+
+const SavedModuleBody = z.object({ id: z.string().regex(UUID_RE), name: z.string().trim().min(1).max(60), brandId: z.string().min(1).max(60), module: z.unknown() });
+
+const savedModuleJson = (r: { id: string; name: string; brandId: string; module: unknown; createdAt: string }) => ({ id: r.id, name: r.name, brandId: r.brandId, module: r.module, savedAt: r.createdAt });
+
+export async function listSavedModules(ctx: HandlerContext) {
+  if (!ctx.userId) return unauthorized();
+  return json({ savedModules: (await ctx.savedModules.list(ctx.userId)).map(savedModuleJson) });
+}
+
+export async function createSavedModule(ctx: HandlerContext, body: unknown) {
+  if (!ctx.userId) return unauthorized();
+  const parsed = SavedModuleBody.safeParse(body);
+  if (!parsed.success) return errorResponse(400, "Invalid saved module.");
+  const { id, name, brandId, module } = parsed.data;
+  // A saved module is valid if it would be valid as the only thing in an email of its own brand,
+  // which also confirms every image in it belongs to this user.
+  const v = await validateOwnedDocument({ ...ctx, userId: ctx.userId }, { schemaVersion: 1, brandId, title: "", subject: "", modules: [module] });
+  if (v.error) return v.error;
+  const mine = await ctx.savedModules.list(ctx.userId);
+  if (!mine.some((m) => m.id === id) && mine.length >= MAX_SAVED_MODULES) return errorResponse(409, `You can keep ${MAX_SAVED_MODULES} saved modules. Remove one first.`);
+  const rec = await ctx.savedModules.create(ctx.userId, { id, name, brandId, module: v.doc.modules[0] });
+  return rec ? json({ savedModule: savedModuleJson(rec) }, 201) : errorResponse(409, "That saved module id is already in use.");
+}
+
+export async function deleteSavedModule(ctx: HandlerContext, id: string) {
+  if (!ctx.userId) return unauthorized();
+  if (!UUID_RE.test(id)) return notFound();
+  return (await ctx.savedModules.remove(ctx.userId, id)) ? json({ ok: true }) : notFound();
 }
 
 /* ---------------- Assets ---------------- */
