@@ -9,6 +9,7 @@ export interface Guide {
 }
 
 export const GUIDES: Guide[] = [
+  { href: "/guides/how-to-use", title: "User guide", blurb: "Every tool explained, with numbered pictures of the editor." },
   { href: "/guides/outlook-email-template", title: "How to create an Outlook email template", blurb: "Step by step for classic Outlook, new Outlook and Outlook for Mac." },
   { href: "/guides/outlook-rendering", title: "Outlook rendering facts", blurb: "Template files, rendering engines, and the 200 things Outlook ignores." },
   { href: "/guides/outlook-rounded-buttons", title: "Rounded buttons in Outlook", blurb: "Why they come out square, and the three ways around it." },

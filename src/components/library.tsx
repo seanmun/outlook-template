@@ -17,6 +17,7 @@ import { storesFor, type AssetClient, type DraftSummary, type LibraryImage, type
 import { getBrand } from "@/lib/email/brands";
 import { formatMb, limitsFor } from "@/lib/limits";
 import { TeamName } from "@/components/team";
+import { CopyTo } from "@/components/copy-to";
 import { COLUMNS_TYPE, type EmailDocument } from "@/lib/email/document";
 import { defaultTemplates, emailFromTemplate, type Template } from "@/lib/email/templates";
 import { getModule } from "@/lib/email/registry";
@@ -230,15 +231,12 @@ export function EmailsCard({ preview = false }: { preview?: boolean }) {
                 </span>
               </button>
               {!preview && (
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="absolute top-2 right-2 bg-white opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
-                  aria-label={`Delete email ${d.title || "Untitled email"}`}
-                  onClick={() => remove(d)}
-                >
-                  <Trash2 />
-                </Button>
+                <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100 has-[[data-popup-open]]:opacity-100 [@media(hover:none)]:opacity-100">
+                  <CopyTo kind="email" id={d.id} name={d.title || "Untitled email"} />
+                  <Button variant="outline" size="icon" className="bg-white" aria-label={`Delete email ${d.title || "Untitled email"}`} onClick={() => remove(d)}>
+                    <Trash2 />
+                  </Button>
+                </div>
               )}
             </li>
           ))}
@@ -337,15 +335,13 @@ export function TemplateTile({ template, busy, onStart, onRemove }: { template: 
         </span>
       </button>
       {onRemove && (
-        <Button
-          variant="outline"
-          size="icon"
-          className="absolute top-2 right-2 bg-white opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
-          aria-label={`Remove template ${template.name}`}
-          onClick={onRemove}
-        >
-          <Trash2 />
-        </Button>
+        <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100 has-[[data-popup-open]]:opacity-100 [@media(hover:none)]:opacity-100">
+          {/* Starter templates are in every Library already, so only a person's own can be copied. */}
+          {!template.isDefault && <CopyTo kind="template" id={template.id} name={template.name} />}
+          <Button variant="outline" size="icon" className="bg-white" aria-label={`Remove template ${template.name}`} onClick={onRemove}>
+            <Trash2 />
+          </Button>
+        </div>
       )}
     </li>
   );
@@ -405,9 +401,12 @@ function BlockCard({ item, assets, onRemove }: { item: SavedModule; assets: Asse
           <div className="text-xs text-neutral-500">{kind}</div>
         </div>
         {onRemove && (
-          <Button variant="ghost" size="icon" aria-label={`Remove saved block ${item.name}`} onClick={onRemove}>
-            <Trash2 />
-          </Button>
+          <div className="flex shrink-0 gap-1">
+            <CopyTo kind="block" id={item.id} name={item.name} />
+            <Button variant="ghost" size="icon" aria-label={`Remove saved block ${item.name}`} onClick={onRemove}>
+              <Trash2 />
+            </Button>
+          </div>
         )}
       </div>
     </li>
@@ -541,7 +540,12 @@ export function ImagesCard({ preview = false }: { preview?: boolean }) {
       ) : (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {shown.map((img) => (
-            <li key={img.src.kind === "asset" ? img.src.assetId : img.thumbUrl} className="rounded-md border p-2">
+            <li key={img.src.kind === "asset" ? img.src.assetId : img.thumbUrl} className="group relative rounded-md border p-2">
+              {!preview && img.src.kind === "asset" && (
+                <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100 has-[[data-popup-open]]:opacity-100 [@media(hover:none)]:opacity-100">
+                  <CopyTo kind="image" id={img.src.assetId} name={img.name} />
+                </div>
+              )}
               {/* eslint-disable-next-line @next/next/no-img-element -- private, per-user images served by our own API or held in the browser */}
               <img src={img.thumbUrl} alt="" loading="lazy" className="h-24 w-full bg-neutral-50 object-contain" />
               <div className="mt-1.5 truncate text-xs font-medium" title={img.name}>

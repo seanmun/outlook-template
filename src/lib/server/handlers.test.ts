@@ -12,6 +12,7 @@ import { newEmailDocument } from "@/lib/email/starter";
 import { createEmail, deleteEmail, exportForDemo, exportForUser, getEmail, listAssets, listEmails, readAsset, updateEmail, uploadAsset, type HandlerContext } from "./handlers";
 import { MemoryAssetRepo, MemoryEmailRepo, MemoryPresenceRepo, MemorySavedModuleRepo, MemoryTemplateRepo } from "./memory-repo";
 import { leavePresence, touchPresence } from "./handlers";
+import { copyToLibrary, type CopyTarget } from "./handlers";
 import { PRESENCE_WINDOW_MS } from "./repo";
 
 function setup() {
@@ -22,7 +23,9 @@ function setup() {
   /** A request from this person, in their own Library or (with `team`) in a team space. */
   const presence = new MemoryPresenceRepo();
   const as = (userId: string | null, team: string | null = null): HandlerContext => ({ userId, workspaceId: team, emails, assets, savedModules, templates, presence });
-  return { emails, assets, presence, as };
+  /** Where a copy goes: this person's own Library, or (with `team`) a team space. Whether they may is the database's call in real life. */
+  const into = (userId: string, team: string | null = null): CopyTarget => ({ scope: { userId, workspaceId: team }, emails, assets, savedModules, templates });
+  return { emails, assets, presence, as, into };
 }
 
 const png = () => sampleBytes("hero-harbor")!;
@@ -447,5 +450,101 @@ describe("who else has a team email open", () => {
     // a personal email has nobody else in it by definition
     const mine = ((await (await createEmail(as("alice"), { document: sampleEmailDocument("harbor-pine") })).json()) as { email: { id: string } }).email.id;
     expect(await others(await touchPresence(as("alice"), mine, { name: "Alice" }))).toEqual([]);
+  });
+});
+
+describe("copying to another Library", () => {
+  const doc = () => sampleEmailDocument("harbor-pine");
+  const emailsIn = async (ctx: HandlerContext) => ((await (await listEmails(ctx)).json()) as { emails: { id: string }[] }).emails;
+  const imagesIn = async (ctx: HandlerContext) => ((await (await listAssets(ctx)).json()) as { assets: { id: string; byteSize: number }[] }).assets;
+  const imageOf = (d: EmailDocument) => (d.modules.find((m) => m.type === "hero")!.content.image as { src: { assetId: string } }).src.assetId;
+
+  it("copies an email into a team space, bringing its pictures, and leaves the original alone", async () => {
+    const { as, into } = setup();
+    const mine = await uploadFor(as("alice"));
+    const made = await createEmail(as("alice"), { document: withAsset(doc(), mine) });
+    const { email } = (await made.json()) as { email: { id: string } };
+    expect((await copyToLibrary(as("alice"), { kind: "email", id: email.id }, into("alice", "team-acme"))).status).toBe(201);
+
+    // the team has its own copy, using its own copy of the picture
+    const teamEmails = await emailsIn(as("bob", "team-acme"));
+    expect(teamEmails).toHaveLength(1);
+    const copy = (await (await getEmail(as("bob", "team-acme"), teamEmails[0].id)).json()) as { email: { document: EmailDocument; workspaceId: string; ownerId: string } };
+    const teamImage = imageOf(copy.email.document);
+    expect(teamImage).not.toBe(mine);
+    expect((await readAsset(as("bob", "team-acme"), teamImage)).status).toBe(200);
+    expect((await readAsset(as("bob", "team-acme"), mine)).status).toBe(404);
+    expect(copy.email).toMatchObject({ workspaceId: "team-acme", ownerId: "alice" });
+    // alice's own email and picture are exactly as they were
+    expect(await emailsIn(as("alice"))).toHaveLength(1);
+    const original = (await (await getEmail(as("alice"), email.id)).json()) as { email: { document: EmailDocument } };
+    expect(imageOf(original.email.document)).toBe(mine);
+    expect(await imagesIn(as("alice"))).toHaveLength(1);
+  });
+
+  it("copies from a team space back to a person's own Library", async () => {
+    const { as, into } = setup();
+    const id = ((await (await createEmail(as("alice", "team-acme"), { document: doc() })).json()) as { email: { id: string } }).email.id;
+    expect((await copyToLibrary(as("bob", "team-acme"), { kind: "email", id }, into("bob"))).status).toBe(201);
+    expect(await emailsIn(as("bob"))).toHaveLength(1);
+    expect(await emailsIn(as("alice"))).toHaveLength(0);
+  });
+
+  it("copies a template, a saved block and a single picture", async () => {
+    const { as, into } = setup();
+    const image = await uploadFor(as("alice"));
+    const t = ((await (await createTemplate(as("alice"), { name: "House style", document: withAsset(doc(), image) })).json()) as { template: { id: string } }).template.id;
+    const blockId = crypto.randomUUID();
+    const hero = withAsset(doc(), image).modules.find((m) => m.type === "hero")!;
+    await createSavedModule(as("alice"), { id: blockId, name: "Banner", brandId: "harbor-pine", module: hero });
+    const team = into("alice", "team-acme");
+    expect((await copyToLibrary(as("alice"), { kind: "template", id: t }, team)).status).toBe(201);
+    expect((await copyToLibrary(as("alice"), { kind: "block", id: blockId }, team)).status).toBe(201);
+    expect((await copyToLibrary(as("alice"), { kind: "image", id: image }, team)).status).toBe(201);
+
+    const mate = as("bob", "team-acme");
+    const templates = ((await (await listTemplates(mate)).json()) as { templates: { name: string; document: EmailDocument }[] }).templates;
+    expect(templates.map((x) => x.name)).toEqual(["House style"]);
+    const blocks = ((await (await listSavedModules(mate)).json()) as { savedModules: { id: string; name: string; module: { content: { image: { src: { assetId: string } } } } }[] }).savedModules;
+    expect(blocks.map((x) => x.name)).toEqual(["Banner"]);
+    expect(blocks[0].id).not.toBe(blockId);
+    // three copies of the picture arrived (one with each), and every reference points at one the team can load
+    const teamImages = (await imagesIn(mate)).map((a) => a.id);
+    expect(teamImages).toHaveLength(3);
+    expect(teamImages).toContain(imageOf(templates[0].document));
+    expect(teamImages).toContain(blocks[0].module.content.image.src.assetId);
+    expect(teamImages).not.toContain(image);
+  });
+
+  it("refuses things that are not in the Library you are in, and copying to where you already are", async () => {
+    const { as, into } = setup();
+    const id = ((await (await createEmail(as("alice"), { document: doc() })).json()) as { email: { id: string } }).email.id;
+    expect((await copyToLibrary(as(null), { kind: "email", id }, into("alice", "team-acme"))).status).toBe(401);
+    expect((await copyToLibrary(as("bob"), { kind: "email", id }, into("bob", "team-acme"))).status).toBe(404);
+    expect((await copyToLibrary(as("alice", "team-acme"), { kind: "email", id }, into("alice"))).status).toBe(404);
+    expect((await copyToLibrary(as("alice"), { kind: "email", id }, into("alice"))).status).toBe(400);
+    expect((await copyToLibrary(as("alice"), { kind: "email", id }, into("mallory", "team-acme"))).status).toBe(403);
+    expect((await copyToLibrary(as("alice"), { kind: "nonsense", id }, into("alice", "team-acme"))).status).toBe(400);
+    expect((await copyToLibrary(as("alice"), { kind: "template", id: "default-town-hall" }, into("alice", "team-acme"))).status).toBe(404);
+  });
+
+  it("respects the destination's limits, and copies nothing when the pictures will not fit", async () => {
+    const { as, into, emails, assets } = setup();
+    const image = await uploadFor(as("alice", "team-acme"));
+    const id = ((await (await createEmail(as("alice", "team-acme"), { document: withAsset(doc(), image) })).json()) as { email: { id: string } }).email.id;
+    // her own Library's picture space is nearly used up
+    const big = { data: new Uint8Array(5 * 1024 * 1024 - 100), mimeType: "image/png", width: 10, height: 10, originalFilename: "big.png" };
+    for (let i = 0; i < 5; i++) await assets.create({ userId: "alice", workspaceId: null }, big);
+    const res = await copyToLibrary(as("alice", "team-acme"), { kind: "email", id }, into("alice"));
+    expect(res.status).toBe(413);
+    expect(((await res.json()) as { error: string }).error).toMatch(/Your Library can hold 25 MB of pictures/);
+    expect(await emailsIn(as("alice"))).toHaveLength(0);
+    expect(await imagesIn(as("alice"))).toHaveLength(5);
+    // and a full email list
+    const { as: as2, into: into2, emails: emails2 } = setup();
+    for (let i = 0; i < PERSONAL_LIMITS.emails; i++) await emails2.create({ userId: "alice", workspaceId: null }, doc());
+    const teamEmail = ((await (await createEmail(as2("alice", "team-acme"), { document: doc() })).json()) as { email: { id: string } }).email.id;
+    expect((await copyToLibrary(as2("alice", "team-acme"), { kind: "email", id: teamEmail }, into2("alice"))).status).toBe(409);
+    void emails;
   });
 });

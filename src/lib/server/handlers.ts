@@ -204,6 +204,106 @@ export async function restoreDefaultTemplates(ctx: HandlerContext) {
   return json({ ok: true });
 }
 
+/* ---------------- Copy to another Library ---------------- */
+
+/** The Library something is being copied into: the person's own, or another team space they belong to. */
+export interface CopyTarget {
+  scope: Scope;
+  emails: EmailRepo;
+  assets: AssetRepo;
+  savedModules: SavedModuleRepo;
+  templates: TemplateRepo;
+}
+
+const CopyBody = z.object({ kind: z.enum(["email", "template", "block", "image"]), id: z.string().min(1).max(80) });
+
+/** Points every picture reference in an email (or one block of it) at its copy in the other Library. */
+function repointImages<T>(value: T, newIds: Map<string, string>): T {
+  if (Array.isArray(value)) return value.map((v) => repointImages(v, newIds)) as T;
+  if (value && typeof value === "object") {
+    const o = value as Record<string, unknown>;
+    if (o.kind === "asset" && typeof o.assetId === "string" && newIds.has(o.assetId)) return { ...o, assetId: newIds.get(o.assetId) } as T;
+    return Object.fromEntries(Object.entries(o).map(([k, v]) => [k, repointImages(v, newIds)])) as T;
+  }
+  return value;
+}
+
+/**
+ * Copies one thing from the Library the person is in to another of theirs. The original stays.
+ * Pictures an email, template or block uses are copied along with it, because a Library can
+ * only use its own pictures. The destination's size limits apply.
+ */
+export async function copyToLibrary(ctx: HandlerContext, body: unknown, target: CopyTarget) {
+  if (!ctx.userId) return unauthorized();
+  const parsed = CopyBody.safeParse(body);
+  if (!parsed.success) return errorResponse(400, "Expected { kind, id }.");
+  if (target.scope.userId !== ctx.userId) return errorResponse(403, "You can only copy into your own Library or a team space you belong to.");
+  if (target.scope.workspaceId === ctx.workspaceId) return errorResponse(400, "That is the Library you are already in.");
+  const from = scopeOf({ ...ctx, userId: ctx.userId });
+  const { kind, id } = parsed.data;
+  const limits = limitsFor(!!target.scope.workspaceId);
+  const there = target.scope.workspaceId ? "That team space" : "Your Library";
+
+  /** Copies the pictures, or answers with the reason it could not. */
+  const copyImages = async (ids: string[]): Promise<Map<string, string> | Response> => {
+    const newIds = new Map<string, string>();
+    if (ids.length === 0) return newIds;
+    let used = (await target.assets.list(target.scope)).reduce((sum, a) => sum + a.byteSize, 0);
+    const pictures = [];
+    for (const assetId of ids) {
+      const picture = UUID_RE.test(assetId) ? await ctx.assets.read(from, assetId) : null;
+      if (!picture) return errorResponse(400, "A picture this uses could not be found, so it was not copied.");
+      used += picture.data.length;
+      pictures.push({ assetId, picture });
+    }
+    // Checked before anything is written, so a copy that will not fit leaves nothing half-done behind.
+    if (used > limits.imageBytes) return errorResponse(413, `${there} can hold ${formatMb(limits.imageBytes)} of pictures, and this would go over. Remove some pictures there first.`);
+    for (const { assetId, picture } of pictures) {
+      const r = picture.record;
+      const copy = await target.assets.create(target.scope, { data: picture.data, mimeType: r.mimeType, width: r.width, height: r.height, originalFilename: r.originalFilename });
+      newIds.set(assetId, copy.id);
+    }
+    return newIds;
+  };
+
+  if (kind === "image") {
+    if (!UUID_RE.test(id)) return notFound();
+    if (!(await ctx.assets.get(from, id))) return notFound();
+    const copied = await copyImages([id]);
+    return copied instanceof Response ? copied : json({ ok: true }, 201);
+  }
+
+  if (kind === "email") {
+    const email = UUID_RE.test(id) ? await ctx.emails.get(from, id) : null;
+    if (!email) return notFound();
+    if ((await target.emails.list(target.scope)).length >= limits.emails) return errorResponse(409, `${there} can hold ${limits.emails} emails and is full.`);
+    const copied = await copyImages(assetIdsIn(email.document));
+    if (copied instanceof Response) return copied;
+    await target.emails.create(target.scope, repointImages(email.document, copied));
+    return json({ ok: true }, 201);
+  }
+
+  if (kind === "template") {
+    const template = (await ctx.templates.list(from)).find((t) => t.id === id);
+    if (!template) return notFound();
+    if ((await target.templates.list(target.scope)).length >= limits.templates) return errorResponse(409, `${there} can hold ${limits.templates} templates of its own and is full.`);
+    const copied = await copyImages(assetIdsIn(template.document));
+    if (copied instanceof Response) return copied;
+    await target.templates.create(target.scope, template.name, repointImages(template.document, copied));
+    return json({ ok: true }, 201);
+  }
+
+  const block = (await ctx.savedModules.list(from)).find((b) => b.id === id);
+  if (!block) return notFound();
+  if ((await target.savedModules.list(target.scope)).length >= limits.savedBlocks) return errorResponse(409, `${there} can hold ${limits.savedBlocks} saved blocks and is full.`);
+  const asDoc: EmailDocument = { schemaVersion: 1, brandId: block.brandId, title: "", subject: "", modules: [block.module] };
+  const copied = await copyImages(assetIdsIn(asDoc));
+  if (copied instanceof Response) return copied;
+  // A new id: the same block can then live in both Libraries.
+  await target.savedModules.create(target.scope, { id: crypto.randomUUID(), name: block.name, brandId: block.brandId, module: repointImages(block.module, copied) });
+  return json({ ok: true }, 201);
+}
+
 /* ---------------- Assets ---------------- */
 
 export async function uploadAsset(ctx: HandlerContext, file: { data: Uint8Array; name: string } | null) {

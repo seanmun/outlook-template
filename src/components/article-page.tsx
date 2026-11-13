@@ -72,7 +72,7 @@ export function ArticlePage(props: {
       <main className="mx-auto w-full max-w-3xl flex-1 space-y-12 px-6 py-12">
         <header>
           <p className="mb-3 inline-block -rotate-1 bg-red-600 px-2 py-0.5 text-xs font-semibold tracking-wider text-white uppercase">{props.tag}</p>
-          <h1 className="font-[family-name:var(--font-display)] text-4xl leading-[1.05] text-neutral-900 uppercase">{props.title}</h1>
+          <h1 className="font-[family-name:var(--font-display)] text-4xl leading-[1.05] [overflow-wrap:anywhere] text-neutral-900 uppercase">{props.title}</h1>
           <p className="mt-4 text-base leading-relaxed text-neutral-700">{props.intro}</p>
           <p className="mt-2 text-xs text-neutral-500">Last updated {props.updated}. Not affiliated with Microsoft.</p>
         </header>

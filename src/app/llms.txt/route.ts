@@ -20,6 +20,7 @@ Key facts:
 - [Home](${SITE_URL}/): what the app does, with example emails
 - [Start an email](${SITE_URL}/new): open an example or a blank email in the editor
 - [Guides](${SITE_URL}/guides): every guide on the site
+- [How to use OUTLOOKSUCKS.email](${SITE_URL}/guides/how-to-use): a picture guide to every tool in the editor, the Library and team spaces
 - [How to create an Outlook email template](${SITE_URL}/guides/outlook-email-template): exact steps for classic Outlook for Windows, the new Outlook, Outlook on the web and Outlook for Mac, and how to share a template
 - [Rounded buttons in Outlook](${SITE_URL}/guides/outlook-rounded-buttons): why border-radius fails in classic Outlook for Windows and the three alternatives, with code
 - [.oft vs .msg vs .emltpl](${SITE_URL}/guides/oft-vs-msg-vs-emltpl): what each Outlook email file type is and which app opens it

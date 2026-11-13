@@ -1,0 +1,304 @@
+{
+ "start": {
+  "src": "/guide/start.png",
+  "width": 864,
+  "height": 764,
+  "alt": "The start page: a Blank email tile followed by templates with previews.",
+  "callouts": [
+   {
+    "key": "blank",
+    "x": 14.5,
+    "y": 32.14
+   },
+   {
+    "key": "template",
+    "x": 38.17,
+    "y": 32.14
+   }
+  ]
+ },
+ "editor": {
+  "src": "/guide/editor.png",
+  "width": 1440,
+  "height": 871,
+  "alt": "The editor: blocks on the left, the email in the middle, settings on the right.",
+  "callouts": [
+   {
+    "key": "topbar",
+    "x": 36.46,
+    "y": 1.49
+   },
+   {
+    "key": "blocks",
+    "x": 11.15,
+    "y": 22.79
+   },
+   {
+    "key": "canvas",
+    "x": 48.92,
+    "y": 40.01
+   },
+   {
+    "key": "settings",
+    "x": 87.81,
+    "y": 19.35
+   }
+  ]
+ },
+ "top-bar": {
+  "src": "/guide/top-bar.png",
+  "width": 1440,
+  "height": 94,
+  "alt": "The bar across the top of the editor.",
+  "callouts": [
+   {
+    "key": "name",
+    "x": 22.8,
+    "y": 63.3
+   },
+   {
+    "key": "subject",
+    "x": 44.52,
+    "y": 63.3
+   },
+   {
+    "key": "saved",
+    "x": 56.79,
+    "y": 54.79
+   },
+   {
+    "key": "undo",
+    "x": 61.65,
+    "y": 63.3
+   },
+   {
+    "key": "template",
+    "x": 69.69,
+    "y": 61.17
+   },
+   {
+    "key": "library",
+    "x": 78.33,
+    "y": 61.17
+   },
+   {
+    "key": "download",
+    "x": 85.46,
+    "y": 61.17
+   }
+  ]
+ },
+ "canvas-bar": {
+  "src": "/guide/canvas-bar.png",
+  "width": 768,
+  "height": 87,
+  "alt": "The small bar above the email: sound, dark mode preview, desktop width and phone width.",
+  "callouts": [
+   {
+    "key": "sound",
+    "x": 84.11,
+    "y": 62.07
+   },
+   {
+    "key": "dark",
+    "x": 88.28,
+    "y": 62.07
+   },
+   {
+    "key": "desktop",
+    "x": 92.45,
+    "y": 62.07
+   },
+   {
+    "key": "phone",
+    "x": 96.61,
+    "y": 62.07
+   }
+  ]
+ },
+ "toolbar-text": {
+  "src": "/guide/toolbar-text.png",
+  "width": 700,
+  "height": 136,
+  "alt": "The toolbar that appears above a text block.",
+  "callouts": [
+   {
+    "key": "name",
+    "x": 9.53,
+    "y": 24.82
+   },
+   {
+    "key": "size",
+    "x": 42.77,
+    "y": 20.59
+   },
+   {
+    "key": "colour",
+    "x": 51.91,
+    "y": 20.59
+   },
+   {
+    "key": "format",
+    "x": 26.19,
+    "y": 20.59
+   },
+   {
+    "key": "align",
+    "x": 61.48,
+    "y": 20.59
+   },
+   {
+    "key": "background",
+    "x": 70.05,
+    "y": 20.59
+   },
+   {
+    "key": "spacing",
+    "x": 77.77,
+    "y": 20.59
+   },
+   {
+    "key": "move",
+    "x": 88.62,
+    "y": 20.59
+   },
+   {
+    "key": "duplicate",
+    "x": 95.05,
+    "y": 20.59
+   },
+   {
+    "key": "save",
+    "x": 4.57,
+    "y": 42.65
+   },
+   {
+    "key": "delete",
+    "x": 8.86,
+    "y": 42.65
+   }
+  ]
+ },
+ "toolbar-picture": {
+  "src": "/guide/toolbar-picture.png",
+  "width": 669,
+  "height": 224,
+  "alt": "The toolbar above a picture, with the picture menu open.",
+  "callouts": [
+   {
+    "key": "change",
+    "x": 16.89,
+    "y": 12.5
+   },
+   {
+    "key": "alt",
+    "x": 21.38,
+    "y": 12.5
+   },
+   {
+    "key": "width",
+    "x": 31.24,
+    "y": 12.5
+   },
+   {
+    "key": "link",
+    "x": 41.11,
+    "y": 12.5
+   },
+   {
+    "key": "upload",
+    "x": 47.66,
+    "y": 37.95
+   },
+   {
+    "key": "library",
+    "x": 47.66,
+    "y": 51.34
+   },
+   {
+    "key": "cutout",
+    "x": 47.66,
+    "y": 64.73
+   },
+   {
+    "key": "remove",
+    "x": 47.66,
+    "y": 78.13
+   }
+  ]
+ },
+ "toolbar-button": {
+  "src": "/guide/toolbar-button.png",
+  "width": 633,
+  "height": 96,
+  "alt": "The toolbar above a button.",
+  "callouts": [
+   {
+    "key": "link",
+    "x": 37.76,
+    "y": 29.17
+   },
+   {
+    "key": "background",
+    "x": 57.83,
+    "y": 29.17
+   }
+  ]
+ },
+ "download": {
+  "src": "/guide/download.png",
+  "width": 588,
+  "height": 525,
+  "alt": "The download box: choose Outlook on Windows, Outlook on Mac, or both.",
+  "callouts": [
+   {
+    "key": "windows",
+    "x": 18.71,
+    "y": 25.24
+   },
+   {
+    "key": "mac",
+    "x": 50,
+    "y": 25.24
+   },
+   {
+    "key": "both",
+    "x": 81.29,
+    "y": 25.24
+   },
+   {
+    "key": "go",
+    "x": 86.93,
+    "y": 92.67
+   }
+  ]
+ },
+ "library": {
+  "src": "/guide/library.png",
+  "width": 896,
+  "height": 1351,
+  "alt": "The Library: a card each for emails, templates, saved blocks and images.",
+  "callouts": [
+   {
+    "key": "emails",
+    "x": 27.67,
+    "y": 10.29
+   },
+   {
+    "key": "templates",
+    "x": 44.16,
+    "y": 43.42
+   },
+   {
+    "key": "blocks",
+    "x": 44.16,
+    "y": 76.81
+   },
+   {
+    "key": "images",
+    "x": 36.51,
+    "y": 89.69
+   }
+  ]
+ }
+}
