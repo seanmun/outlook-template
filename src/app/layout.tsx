@@ -8,6 +8,7 @@ import { ConfigProvider, type ServerConfig } from "@/lib/client/config";
 import { publicConfig } from "@/lib/server/config";
 import { exporterStatuses } from "@/lib/export/exporters";
 import { SITE_URL } from "@/lib/site";
+import { TEAMS_ENABLED } from "@/lib/teams";
 import { pageMetadata, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE } from "@/lib/seo";
 import "./globals.css";
 
@@ -27,15 +28,30 @@ export const metadata: Metadata = {
   alternates: undefined,
 };
 
+/** Our words for Clerk's team menu: people here have a "Library" and "team spaces", not "accounts" and "organizations". */
+const CLERK_WORDS = {
+  organizationSwitcher: {
+    personalWorkspace: "My Library",
+    action__createOrganization: "Create a team space",
+    action__manageOrganization: "Manage team",
+  },
+  createOrganization: {
+    title: "Create a team space",
+    formButtonSubmit: "Create team space",
+  },
+};
+
 export const dynamic = "force-dynamic";
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const config: ServerConfig = { ...publicConfig(), exporters: exporterStatuses() };
   const production = config.mode === "production";
-  const userId = production ? (await auth()).userId : null;
+  const session = production ? await auth() : null;
+  const userId = session?.userId ?? null;
+  const workspaceId = TEAMS_ENABLED ? (session?.orgId ?? null) : null;
   const app = (
     <>
-      <ConfigProvider value={config} userId={userId}>
+      <ConfigProvider value={config} userId={userId} workspaceId={workspaceId}>
         <TooltipProvider>{children}</TooltipProvider>
       </ConfigProvider>
       <Toaster position="bottom-right" />
@@ -44,7 +60,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${bungee.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-neutral-50 text-neutral-900">
-        {production ? <ClerkProvider>{app}</ClerkProvider> : app}
+        {production ? <ClerkProvider localization={CLERK_WORDS}>{app}</ClerkProvider> : app}
       </body>
     </html>
   );

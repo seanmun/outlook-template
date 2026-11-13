@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { UserButton } from "@clerk/nextjs";
+import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
+import { TEAMS_ENABLED } from "@/lib/teams";
 import { useConfig } from "@/lib/client/config";
 
 export function DemoBanner() {
@@ -44,6 +45,17 @@ export function AppHeader({ children }: { children?: React.ReactNode }) {
             Library
           </Link>
         </>
+      )}
+      {/* Signed in: switch between your own Library and a team space, create a team, or invite people. */}
+      {/* Not in the editor (which passes its own controls as children): its top bar has no room, and switching there would close the email. */}
+      {TEAMS_ENABLED && !children && ready && mode === "production" && (
+        <OrganizationSwitcher
+          hidePersonal={false}
+          afterSelectOrganizationUrl="/library"
+          afterSelectPersonalUrl="/library"
+          afterCreateOrganizationUrl="/library"
+          afterLeaveOrganizationUrl="/library"
+        />
       )}
       {ready && mode === "production" && <UserButton />}
       {ready && mode === "demo" && authAvailable && (

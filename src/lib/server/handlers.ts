@@ -12,15 +12,19 @@ import { buildExportPackage, MissingImageError, type ImageLoader } from "@/lib/e
 import { ExportFailedError, ExporterUnavailableError, type ExporterId } from "@/lib/export/types";
 import { CfbTooLargeError } from "@/lib/export/cfb-writer";
 import { MAX_UPLOAD_BYTES, readImageInfo } from "./image-info";
-import { UUID_RE, type AssetRepo, type EmailRepo, type SavedModuleRepo, type TemplateRepo } from "./repo";
-import { DEFAULT_TEMPLATE_IDS, MAX_TEMPLATES } from "@/lib/email/templates";
+import { UUID_RE, type AssetRepo, type EmailRepo, type PresenceRepo, type SavedModuleRepo, type Scope, type TemplateRepo } from "./repo";
+import { formatMb, limitsFor } from "@/lib/limits";
+import { DEFAULT_TEMPLATE_IDS } from "@/lib/email/templates";
 
 export interface HandlerContext {
   userId: string | null;
+  /** The team space the person is working in, or null for their own Library. */
+  workspaceId: string | null;
   emails: EmailRepo;
   assets: AssetRepo;
   savedModules: SavedModuleRepo;
   templates: TemplateRepo;
+  presence: PresenceRepo;
 }
 
 export function json(data: unknown, status = 200): Response {
@@ -31,6 +35,11 @@ export function errorResponse(status: number, message: string, details?: unknown
 }
 
 const unauthorized = () => errorResponse(401, "Sign in required.");
+
+/** Whose Library this request works on. Only call once the user is known to be signed in. */
+const scopeOf = (ctx: HandlerContext & { userId: string }): Scope => ({ userId: ctx.userId, workspaceId: ctx.workspaceId });
+const limitsOf = (ctx: HandlerContext) => limitsFor(!!ctx.workspaceId);
+const space = (ctx: HandlerContext) => (ctx.workspaceId ? "This team space" : "Your Library");
 const notFound = () => errorResponse(404, "Not found.");
 
 function assetIdsIn(doc: EmailDocument): string[] {
@@ -44,9 +53,9 @@ async function validateOwnedDocument(ctx: HandlerContext & { userId: string }, r
   const ids = assetIdsIn(r.doc);
   const malformed = ids.filter((id) => !UUID_RE.test(id));
   if (malformed.length) return { error: errorResponse(400, "Document references invalid asset ids.", malformed) };
-  const owned = await ctx.assets.existing(ctx.userId, ids);
+  const owned = await ctx.assets.existing(scopeOf(ctx), ids);
   const foreign = ids.filter((id) => !owned.has(id));
-  if (foreign.length) return { error: errorResponse(400, "Document references images that do not exist or are not yours.", foreign) };
+  if (foreign.length) return { error: errorResponse(400, "Document references images that do not exist or are not in this Library.", foreign) };
   return { doc: r.doc };
 }
 
@@ -54,21 +63,24 @@ async function validateOwnedDocument(ctx: HandlerContext & { userId: string }, r
 
 export async function listEmails(ctx: HandlerContext) {
   if (!ctx.userId) return unauthorized();
-  return json({ emails: await ctx.emails.list(ctx.userId) });
+  return json({ emails: await ctx.emails.list(scopeOf({ ...ctx, userId: ctx.userId })) });
 }
 
 export async function createEmail(ctx: HandlerContext, body: unknown) {
   if (!ctx.userId) return unauthorized();
   const v = await validateOwnedDocument({ ...ctx, userId: ctx.userId }, (body as { document?: unknown })?.document);
   if (v.error) return v.error;
-  const rec = await ctx.emails.create(ctx.userId, v.doc);
+  const scope = scopeOf({ ...ctx, userId: ctx.userId });
+  const limit = limitsOf(ctx).emails;
+  if ((await ctx.emails.list(scope)).length >= limit) return errorResponse(409, `${space(ctx)} can hold ${limit} emails. Delete one you no longer need first.`);
+  const rec = await ctx.emails.create(scope, v.doc);
   return json({ email: rec }, 201);
 }
 
 export async function getEmail(ctx: HandlerContext, id: string) {
   if (!ctx.userId) return unauthorized();
   if (!UUID_RE.test(id)) return notFound();
-  const rec = await ctx.emails.get(ctx.userId, id);
+  const rec = await ctx.emails.get(scopeOf({ ...ctx, userId: ctx.userId }), id);
   return rec ? json({ email: rec }) : notFound();
 }
 
@@ -81,7 +93,7 @@ export async function updateEmail(ctx: HandlerContext, id: string, body: unknown
   if (!parsed.success) return errorResponse(400, "Expected { document, revision }.");
   const v = await validateOwnedDocument({ ...ctx, userId: ctx.userId }, parsed.data.document);
   if (v.error) return v.error;
-  const result = await ctx.emails.update(ctx.userId, id, v.doc, parsed.data.revision);
+  const result = await ctx.emails.update(scopeOf({ ...ctx, userId: ctx.userId }), id, v.doc, parsed.data.revision);
   if (result === "not_found") return notFound();
   if (result === "conflict") return errorResponse(409, "This email was saved elsewhere (another tab?). Reload to get the latest version.");
   return json({ email: result });
@@ -90,13 +102,35 @@ export async function updateEmail(ctx: HandlerContext, id: string, body: unknown
 export async function deleteEmail(ctx: HandlerContext, id: string) {
   if (!ctx.userId) return unauthorized();
   if (!UUID_RE.test(id)) return notFound();
-  return (await ctx.emails.remove(ctx.userId, id)) ? json({ ok: true }) : notFound();
+  return (await ctx.emails.remove(scopeOf({ ...ctx, userId: ctx.userId }), id)) ? json({ ok: true }) : notFound();
+}
+
+/* ---------------- Who else has a team email open ---------------- */
+
+const PresenceBody = z.object({ name: z.string().trim().min(1).max(80) });
+
+/** Called by the editor every few seconds while a team email is open. Answers with the teammates who also have it open. */
+export async function touchPresence(ctx: HandlerContext, id: string, body: unknown) {
+  if (!ctx.userId) return unauthorized();
+  if (!UUID_RE.test(id)) return notFound();
+  // Only team emails can be open by more than one person.
+  if (!ctx.workspaceId) return json({ others: [] });
+  const parsed = PresenceBody.safeParse(body);
+  if (!parsed.success) return errorResponse(400, "Expected { name }.");
+  const scope = { userId: ctx.userId, workspaceId: ctx.workspaceId };
+  if (!(await ctx.emails.get(scope, id))) return notFound();
+  return json({ others: await ctx.presence.touch(scope, id, parsed.data.name) });
+}
+
+export async function leavePresence(ctx: HandlerContext, id: string) {
+  if (!ctx.userId) return unauthorized();
+  if (!UUID_RE.test(id)) return notFound();
+  await ctx.presence.leave(scopeOf({ ...ctx, userId: ctx.userId }), id);
+  return json({ ok: true });
 }
 
 /* ---------------- Saved modules ---------------- */
 
-/** Keep in step with MAX_SAVED_MODULES in lib/client/saved-modules.ts. */
-export const MAX_SAVED_MODULES = 40;
 
 const SavedModuleBody = z.object({ id: z.string().regex(UUID_RE), name: z.string().trim().min(1).max(60), brandId: z.string().min(1).max(60), module: z.unknown() });
 
@@ -104,7 +138,7 @@ const savedModuleJson = (r: { id: string; name: string; brandId: string; module:
 
 export async function listSavedModules(ctx: HandlerContext) {
   if (!ctx.userId) return unauthorized();
-  return json({ savedModules: (await ctx.savedModules.list(ctx.userId)).map(savedModuleJson) });
+  return json({ savedModules: (await ctx.savedModules.list(scopeOf({ ...ctx, userId: ctx.userId }))).map(savedModuleJson) });
 }
 
 export async function createSavedModule(ctx: HandlerContext, body: unknown) {
@@ -116,16 +150,17 @@ export async function createSavedModule(ctx: HandlerContext, body: unknown) {
   // which also confirms every image in it belongs to this user.
   const v = await validateOwnedDocument({ ...ctx, userId: ctx.userId }, { schemaVersion: 1, brandId, title: "", subject: "", modules: [module] });
   if (v.error) return v.error;
-  const mine = await ctx.savedModules.list(ctx.userId);
-  if (!mine.some((m) => m.id === id) && mine.length >= MAX_SAVED_MODULES) return errorResponse(409, `You can keep ${MAX_SAVED_MODULES} saved modules. Remove one first.`);
-  const rec = await ctx.savedModules.create(ctx.userId, { id, name, brandId, module: v.doc.modules[0] });
+  const mine = await ctx.savedModules.list(scopeOf({ ...ctx, userId: ctx.userId }));
+  const limit = limitsOf(ctx).savedBlocks;
+  if (!mine.some((m) => m.id === id) && mine.length >= limit) return errorResponse(409, `${space(ctx)} can hold ${limit} saved blocks. Remove one first.`);
+  const rec = await ctx.savedModules.create(scopeOf({ ...ctx, userId: ctx.userId }), { id, name, brandId, module: v.doc.modules[0] });
   return rec ? json({ savedModule: savedModuleJson(rec) }, 201) : errorResponse(409, "That saved module id is already in use.");
 }
 
 export async function deleteSavedModule(ctx: HandlerContext, id: string) {
   if (!ctx.userId) return unauthorized();
   if (!UUID_RE.test(id)) return notFound();
-  return (await ctx.savedModules.remove(ctx.userId, id)) ? json({ ok: true }) : notFound();
+  return (await ctx.savedModules.remove(scopeOf({ ...ctx, userId: ctx.userId }), id)) ? json({ ok: true }) : notFound();
 }
 
 /* ---------------- Templates ---------------- */
@@ -137,7 +172,7 @@ const templateJson = (r: { id: string; name: string; document: EmailDocument; cr
 /** The user's own templates, plus which of the starter templates they have removed. */
 export async function listTemplates(ctx: HandlerContext) {
   if (!ctx.userId) return unauthorized();
-  const [own, hidden] = await Promise.all([ctx.templates.list(ctx.userId), ctx.templates.hiddenDefaults(ctx.userId)]);
+  const [own, hidden] = await Promise.all([ctx.templates.list(scopeOf({ ...ctx, userId: ctx.userId })), ctx.templates.hiddenDefaults(scopeOf({ ...ctx, userId: ctx.userId }))]);
   return json({ templates: own.map(templateJson), hiddenDefaults: hidden });
 }
 
@@ -147,24 +182,25 @@ export async function createTemplate(ctx: HandlerContext, body: unknown) {
   if (!parsed.success) return errorResponse(400, "A template needs a name and an email.");
   const v = await validateOwnedDocument({ ...ctx, userId: ctx.userId }, parsed.data.document);
   if (v.error) return v.error;
-  if ((await ctx.templates.list(ctx.userId)).length >= MAX_TEMPLATES) return errorResponse(409, `You can keep ${MAX_TEMPLATES} templates of your own. Remove one first.`);
-  return json({ template: templateJson(await ctx.templates.create(ctx.userId, parsed.data.name, v.doc)) }, 201);
+  const limit = limitsOf(ctx).templates;
+  if ((await ctx.templates.list(scopeOf({ ...ctx, userId: ctx.userId }))).length >= limit) return errorResponse(409, `${space(ctx)} can hold ${limit} templates of your own. Remove one first.`);
+  return json({ template: templateJson(await ctx.templates.create(scopeOf({ ...ctx, userId: ctx.userId }), parsed.data.name, v.doc)) }, 201);
 }
 
 /** Deletes one of the user's templates, or hides a starter template for them. */
 export async function deleteTemplate(ctx: HandlerContext, id: string) {
   if (!ctx.userId) return unauthorized();
   if (DEFAULT_TEMPLATE_IDS.includes(id)) {
-    await ctx.templates.hideDefault(ctx.userId, id);
+    await ctx.templates.hideDefault(scopeOf({ ...ctx, userId: ctx.userId }), id);
     return json({ ok: true });
   }
   if (!UUID_RE.test(id)) return notFound();
-  return (await ctx.templates.remove(ctx.userId, id)) ? json({ ok: true }) : notFound();
+  return (await ctx.templates.remove(scopeOf({ ...ctx, userId: ctx.userId }), id)) ? json({ ok: true }) : notFound();
 }
 
 export async function restoreDefaultTemplates(ctx: HandlerContext) {
   if (!ctx.userId) return unauthorized();
-  await ctx.templates.restoreDefaults(ctx.userId);
+  await ctx.templates.restoreDefaults(scopeOf({ ...ctx, userId: ctx.userId }));
   return json({ ok: true });
 }
 
@@ -176,7 +212,13 @@ export async function uploadAsset(ctx: HandlerContext, file: { data: Uint8Array;
   if (file.data.length > MAX_UPLOAD_BYTES) return errorResponse(413, `Images must be ${MAX_UPLOAD_BYTES / 1024 / 1024} MB or smaller.`);
   const info = readImageInfo(file.data);
   if (!info) return errorResponse(415, "Only PNG, JPEG or GIF images up to 6000px are supported.");
-  const rec = await ctx.assets.create(ctx.userId, {
+  const scope = scopeOf({ ...ctx, userId: ctx.userId });
+  const limit = limitsOf(ctx).imageBytes;
+  const used = (await ctx.assets.list(scope)).reduce((sum, a) => sum + a.byteSize, 0);
+  if (used + file.data.length > limit) {
+    return errorResponse(413, `${space(ctx)} can hold ${formatMb(limit)} of pictures and has ${formatMb(Math.max(0, limit - used))} left. Use a smaller picture.`);
+  }
+  const rec = await ctx.assets.create(scope, {
     data: file.data,
     mimeType: info.mimeType,
     width: info.width,
@@ -188,14 +230,14 @@ export async function uploadAsset(ctx: HandlerContext, file: { data: Uint8Array;
 
 export async function listAssets(ctx: HandlerContext) {
   if (!ctx.userId) return unauthorized();
-  const rows = await ctx.assets.list(ctx.userId);
-  return json({ assets: rows.map((r) => ({ id: r.id, width: r.width, height: r.height, originalFilename: r.originalFilename, createdAt: r.createdAt })) });
+  const rows = await ctx.assets.list(scopeOf({ ...ctx, userId: ctx.userId }));
+  return json({ assets: rows.map((r) => ({ id: r.id, width: r.width, height: r.height, byteSize: r.byteSize, originalFilename: r.originalFilename, createdAt: r.createdAt })) });
 }
 
 export async function readAsset(ctx: HandlerContext, id: string): Promise<Response> {
   if (!ctx.userId) return unauthorized();
   if (!UUID_RE.test(id)) return notFound();
-  const r = await ctx.assets.read(ctx.userId, id);
+  const r = await ctx.assets.read(scopeOf({ ...ctx, userId: ctx.userId }), id);
   if (!r) return notFound();
   return new Response(r.data as BodyInit, {
     headers: {
@@ -243,13 +285,13 @@ export async function exportForUser(ctx: HandlerContext, body: unknown) {
   if (!formats.success) return errorResponse(400, "Unknown or missing export formats.");
   const v = await validateOwnedDocument({ ...ctx, userId: ctx.userId }, b?.document);
   if (v.error) return v.error;
-  const userId = ctx.userId;
+  const scope = scopeOf({ ...ctx, userId: ctx.userId });
   return runExport(v.doc, formats.data, async (src) => {
     if (src.kind === "sample") {
       const data = sampleBytes(src.sampleId);
       return data ? { data } : null;
     }
-    const r = await ctx.assets.read(userId, src.assetId);
+    const r = await ctx.assets.read(scope, src.assetId);
     return r ? { data: r.data } : null;
   });
 }

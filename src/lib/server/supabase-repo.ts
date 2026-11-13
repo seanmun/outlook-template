@@ -5,11 +5,15 @@ import "server-only";
  * Requests run with the signed-in user's Clerk session token (Supabase
  * third-party auth), NOT a service-role key. Row Level Security and Storage
  * policies (supabase/migrations) therefore enforce ownership in the database;
- * the explicit owner_id filters below are defence in depth.
+ * the explicit scope filters below are defence in depth.
+ *
+ * Every row is either personal (workspace_id null, owner_id = the person) or
+ * belongs to a team space (workspace_id = the Clerk organization id). A request
+ * works in exactly one of those: see `Scope`.
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { EmailDocument, ModuleInstance } from "@/lib/email/document";
-import type { AssetRecord, AssetRepo, EmailRecord, EmailRepo, NewAsset, SavedModuleRecord, SavedModuleRepo, TemplateRecord, TemplateRepo } from "./repo";
+import { PRESENCE_WINDOW_MS, type AssetRecord, type AssetRepo, type EmailRecord, type EmailRepo, type NewAsset, type PresenceRepo, type Scope, type SavedModuleRecord, type SavedModuleRepo, type TemplateRecord, type TemplateRepo } from "./repo";
 
 export const ASSET_BUCKET = "email-assets";
 
@@ -20,9 +24,31 @@ export function supabaseForUser(getToken: () => Promise<string | null>): Supabas
   });
 }
 
+/** The two filter methods every Supabase query builder has. Declared loosely: the builders' own types are too deep to pass through a generic. */
+interface Filterable {
+  eq(column: string, value: string): Filterable;
+  is(column: string, value: null): Filterable;
+}
+
+/** Narrows a query to the rows of one scope: the team space's, or the person's own personal rows. */
+function within<Q>(query: Q, scope: Scope): Q {
+  const q = query as unknown as Filterable;
+  return (scope.workspaceId ? q.eq("workspace_id", scope.workspaceId) : q.eq("owner_id", scope.userId).is("workspace_id", null)) as unknown as Q;
+}
+
+/** The ownership columns for a new row in this scope. */
+const ownership = (scope: Scope) => ({ owner_id: scope.userId, workspace_id: scope.workspaceId });
+
+function fail(op: string, error: { message: string }): never {
+  throw new Error(`Supabase ${op} failed: ${error.message}`);
+}
+
+/* ---------------- Emails ---------------- */
+
 interface EmailRow {
   id: string;
   owner_id: string;
+  workspace_id: string | null;
   brand_id: string;
   title: string;
   subject: string;
@@ -35,6 +61,7 @@ interface EmailRow {
 const toEmail = (r: EmailRow): EmailRecord => ({
   id: r.id,
   ownerId: r.owner_id,
+  workspaceId: r.workspace_id ?? null,
   brandId: r.brand_id,
   title: r.title,
   subject: r.subject,
@@ -44,72 +71,68 @@ const toEmail = (r: EmailRow): EmailRecord => ({
   updatedAt: r.updated_at,
 });
 
-function fail(op: string, error: { message: string }): never {
-  throw new Error(`Supabase ${op} failed: ${error.message}`);
-}
-
 export class SupabaseEmailRepo implements EmailRepo {
   constructor(private db: SupabaseClient) {}
 
-  async list(ownerId: string) {
-    const { data, error } = await this.db
-      .from("emails")
-      .select("id, brand_id, title, subject, updated_at")
-      .eq("owner_id", ownerId)
-      .order("updated_at", { ascending: false })
-      .limit(200);
+  async list(scope: Scope) {
+    const { data, error } = await within(this.db.from("emails").select("id, brand_id, title, subject, updated_at"), scope).order("updated_at", { ascending: false }).limit(500);
     if (error) fail("list emails", error);
     return (data ?? []).map((r) => ({ id: r.id, brandId: r.brand_id, title: r.title, subject: r.subject, updatedAt: r.updated_at }));
   }
 
-  async get(ownerId: string, id: string) {
-    const { data, error } = await this.db.from("emails").select("*").eq("id", id).eq("owner_id", ownerId).maybeSingle();
+  async get(scope: Scope, id: string) {
+    const { data, error } = await within(this.db.from("emails").select("*").eq("id", id), scope).maybeSingle();
     if (error) fail("get email", error);
     return data ? toEmail(data as EmailRow) : null;
   }
 
-  async create(ownerId: string, doc: EmailDocument) {
+  async create(scope: Scope, doc: EmailDocument) {
     const { data, error } = await this.db
       .from("emails")
-      .insert({ owner_id: ownerId, brand_id: doc.brandId, title: doc.title, subject: doc.subject, schema_version: doc.schemaVersion, document: doc })
+      .insert({ ...ownership(scope), brand_id: doc.brandId, title: doc.title, subject: doc.subject, schema_version: doc.schemaVersion, document: doc })
       .select("*")
       .single();
     if (error) fail("create email", error);
     return toEmail(data as EmailRow);
   }
 
-  async update(ownerId: string, id: string, doc: EmailDocument, expectedRevision: number) {
-    const { data, error } = await this.db
-      .from("emails")
-      .update({
-        brand_id: doc.brandId,
-        title: doc.title,
-        subject: doc.subject,
-        schema_version: doc.schemaVersion,
-        document: doc,
-        revision: expectedRevision + 1,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id)
-      .eq("owner_id", ownerId)
-      .eq("revision", expectedRevision)
+  async update(scope: Scope, id: string, doc: EmailDocument, expectedRevision: number) {
+    const { data, error } = await within(
+      this.db
+        .from("emails")
+        .update({
+          brand_id: doc.brandId,
+          title: doc.title,
+          subject: doc.subject,
+          schema_version: doc.schemaVersion,
+          document: doc,
+          revision: expectedRevision + 1,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .eq("revision", expectedRevision),
+      scope,
+    )
       .select("*")
       .maybeSingle();
     if (error) fail("update email", error);
     if (data) return toEmail(data as EmailRow);
-    return (await this.get(ownerId, id)) ? ("conflict" as const) : ("not_found" as const);
+    return (await this.get(scope, id)) ? ("conflict" as const) : ("not_found" as const);
   }
 
-  async remove(ownerId: string, id: string) {
-    const { data, error } = await this.db.from("emails").delete().eq("id", id).eq("owner_id", ownerId).select("id");
+  async remove(scope: Scope, id: string) {
+    const { data, error } = await within(this.db.from("emails").delete().eq("id", id), scope).select("id");
     if (error) fail("delete email", error);
     return (data ?? []).length > 0;
   }
 }
 
+/* ---------------- Assets ---------------- */
+
 interface AssetRow {
   id: string;
   owner_id: string;
+  workspace_id: string | null;
   storage_path: string;
   mime_type: string;
   byte_size: number;
@@ -121,6 +144,7 @@ interface AssetRow {
 const toAsset = (r: AssetRow): AssetRecord => ({
   id: r.id,
   ownerId: r.owner_id,
+  workspaceId: r.workspace_id ?? null,
   storagePath: r.storage_path,
   mimeType: r.mime_type,
   byteSize: r.byte_size,
@@ -135,15 +159,15 @@ const EXT: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "
 export class SupabaseAssetRepo implements AssetRepo {
   constructor(private db: SupabaseClient) {}
 
-  async create(ownerId: string, a: NewAsset) {
+  async create(scope: Scope, a: NewAsset) {
     const id = crypto.randomUUID();
-    // First path segment must equal the user id: enforced by the storage policy.
-    const path = `${ownerId}/${id}.${EXT[a.mimeType] ?? "bin"}`;
+    // The first path segment is the team space's id, or the person's for personal images: enforced by the storage policy.
+    const path = `${scope.workspaceId ?? scope.userId}/${id}.${EXT[a.mimeType] ?? "bin"}`;
     const up = await this.db.storage.from(ASSET_BUCKET).upload(path, a.data, { contentType: a.mimeType, upsert: false });
     if (up.error) fail("upload asset", up.error);
     const { data, error } = await this.db
       .from("assets")
-      .insert({ id, owner_id: ownerId, storage_path: path, mime_type: a.mimeType, byte_size: a.data.length, width: a.width, height: a.height, original_filename: a.originalFilename })
+      .insert({ id, ...ownership(scope), storage_path: path, mime_type: a.mimeType, byte_size: a.data.length, width: a.width, height: a.height, original_filename: a.originalFilename })
       .select("*")
       .single();
     if (error) {
@@ -153,117 +177,158 @@ export class SupabaseAssetRepo implements AssetRepo {
     return toAsset(data as AssetRow);
   }
 
-  async get(ownerId: string, id: string) {
-    const { data, error } = await this.db.from("assets").select("*").eq("id", id).eq("owner_id", ownerId).maybeSingle();
+  async get(scope: Scope, id: string) {
+    const { data, error } = await within(this.db.from("assets").select("*").eq("id", id), scope).maybeSingle();
     if (error) fail("get asset", error);
     return data ? toAsset(data as AssetRow) : null;
   }
 
-  async read(ownerId: string, id: string) {
-    const record = await this.get(ownerId, id);
+  async read(scope: Scope, id: string) {
+    const record = await this.get(scope, id);
     if (!record) return null;
     const { data, error } = await this.db.storage.from(ASSET_BUCKET).download(record.storagePath);
     if (error || !data) return null;
     return { record, data: new Uint8Array(await data.arrayBuffer()) };
   }
 
-  async list(ownerId: string) {
-    const { data, error } = await this.db.from("assets").select("*").eq("owner_id", ownerId).order("created_at", { ascending: false }).limit(500);
+  async list(scope: Scope) {
+    const { data, error } = await within(this.db.from("assets").select("*"), scope).order("created_at", { ascending: false }).limit(1000);
     if (error) fail("list assets", error);
     return (data ?? []).map((r) => toAsset(r as AssetRow));
   }
 
-  async existing(ownerId: string, ids: string[]) {
+  async existing(scope: Scope, ids: string[]) {
     if (ids.length === 0) return new Set<string>();
-    const { data, error } = await this.db.from("assets").select("id").in("id", ids).eq("owner_id", ownerId);
+    const { data, error } = await within(this.db.from("assets").select("id").in("id", ids), scope);
     if (error) fail("check assets", error);
     return new Set((data ?? []).map((r: { id: string }) => r.id));
   }
 }
 
+/* ---------------- Saved modules ---------------- */
+
 interface SavedModuleRow {
   id: string;
   owner_id: string;
+  workspace_id: string | null;
   name: string;
   brand_id: string;
   module: ModuleInstance;
   created_at: string;
 }
-const toSavedModule = (r: SavedModuleRow): SavedModuleRecord => ({ id: r.id, ownerId: r.owner_id, name: r.name, brandId: r.brand_id, module: r.module, createdAt: r.created_at });
+const toSavedModule = (r: SavedModuleRow): SavedModuleRecord => ({
+  id: r.id,
+  ownerId: r.owner_id,
+  workspaceId: r.workspace_id ?? null,
+  name: r.name,
+  brandId: r.brand_id,
+  module: r.module,
+  createdAt: r.created_at,
+});
 
 export class SupabaseSavedModuleRepo implements SavedModuleRepo {
   constructor(private db: SupabaseClient) {}
 
-  async list(ownerId: string) {
-    const { data, error } = await this.db.from("saved_modules").select("*").eq("owner_id", ownerId).order("created_at", { ascending: false }).limit(200);
+  async list(scope: Scope) {
+    const { data, error } = await within(this.db.from("saved_modules").select("*"), scope).order("created_at", { ascending: false }).limit(500);
     if (error) fail("list saved modules", error);
     return (data ?? []).map((r) => toSavedModule(r as SavedModuleRow));
   }
 
-  async create(ownerId: string, item: Pick<SavedModuleRecord, "id" | "name" | "brandId" | "module">) {
+  async create(scope: Scope, item: Pick<SavedModuleRecord, "id" | "name" | "brandId" | "module">) {
     const { data, error } = await this.db
       .from("saved_modules")
-      .insert({ id: item.id, owner_id: ownerId, name: item.name, brand_id: item.brandId, module: item.module })
+      .insert({ id: item.id, ...ownership(scope), name: item.name, brand_id: item.brandId, module: item.module })
       .select("*")
       .single();
     if (!error) return toSavedModule(data as SavedModuleRow);
-    // 23505 = the id is already stored. Ours: return it. Someone else's: RLS hides it, so this reads as null.
+    // 23505 = the id is already stored. In this scope: return it. Anywhere else: RLS or the scope filter hides it, so this reads as null.
     if (error.code !== "23505") fail("save module", error);
-    const again = await this.db.from("saved_modules").select("*").eq("id", item.id).eq("owner_id", ownerId).maybeSingle();
+    const again = await within(this.db.from("saved_modules").select("*").eq("id", item.id), scope).maybeSingle();
     if (again.error) fail("read saved module", again.error);
     return again.data ? toSavedModule(again.data as SavedModuleRow) : null;
   }
 
-  async remove(ownerId: string, id: string) {
-    const { data, error } = await this.db.from("saved_modules").delete().eq("id", id).eq("owner_id", ownerId).select("id");
+  async remove(scope: Scope, id: string) {
+    const { data, error } = await within(this.db.from("saved_modules").delete().eq("id", id), scope).select("id");
     if (error) fail("delete saved module", error);
     return (data ?? []).length > 0;
   }
 }
 
+/* ---------------- Templates ---------------- */
+
 interface TemplateRow {
   id: string;
   owner_id: string;
+  workspace_id: string | null;
   name: string;
   document: EmailDocument;
   created_at: string;
 }
-const toTemplate = (r: TemplateRow): TemplateRecord => ({ id: r.id, ownerId: r.owner_id, name: r.name, document: r.document, createdAt: r.created_at });
+const toTemplate = (r: TemplateRow): TemplateRecord => ({ id: r.id, ownerId: r.owner_id, workspaceId: r.workspace_id ?? null, name: r.name, document: r.document, createdAt: r.created_at });
 
 export class SupabaseTemplateRepo implements TemplateRepo {
   constructor(private db: SupabaseClient) {}
 
-  async list(ownerId: string) {
-    const { data, error } = await this.db.from("templates").select("*").eq("owner_id", ownerId).order("created_at", { ascending: false }).limit(200);
+  async list(scope: Scope) {
+    const { data, error } = await within(this.db.from("templates").select("*"), scope).order("created_at", { ascending: false }).limit(500);
     if (error) fail("list templates", error);
     return (data ?? []).map((r) => toTemplate(r as TemplateRow));
   }
 
-  async create(ownerId: string, name: string, doc: EmailDocument) {
-    const { data, error } = await this.db.from("templates").insert({ owner_id: ownerId, name, document: doc }).select("*").single();
+  async create(scope: Scope, name: string, doc: EmailDocument) {
+    const { data, error } = await this.db
+      .from("templates")
+      .insert({ ...ownership(scope), name, document: doc })
+      .select("*")
+      .single();
     if (error) fail("save template", error);
     return toTemplate(data as TemplateRow);
   }
 
-  async remove(ownerId: string, id: string) {
-    const { data, error } = await this.db.from("templates").delete().eq("id", id).eq("owner_id", ownerId).select("id");
+  async remove(scope: Scope, id: string) {
+    const { data, error } = await within(this.db.from("templates").delete().eq("id", id), scope).select("id");
     if (error) fail("delete template", error);
     return (data ?? []).length > 0;
   }
 
-  async hiddenDefaults(ownerId: string) {
-    const { data, error } = await this.db.from("hidden_default_templates").select("default_id").eq("owner_id", ownerId);
+  async hiddenDefaults(scope: Scope) {
+    const { data, error } = await within(this.db.from("hidden_starter_templates").select("default_id"), scope);
     if (error) fail("list hidden templates", error);
-    return (data ?? []).map((r: { default_id: string }) => r.default_id);
+    // In a team space several members may each have removed the same starter template.
+    return [...new Set((data ?? []).map((r: { default_id: string }) => r.default_id))];
   }
 
-  async hideDefault(ownerId: string, defaultId: string) {
-    const { error } = await this.db.from("hidden_default_templates").upsert({ owner_id: ownerId, default_id: defaultId }, { onConflict: "owner_id,default_id", ignoreDuplicates: true });
-    if (error) fail("hide template", error);
+  async hideDefault(scope: Scope, defaultId: string) {
+    const { error } = await this.db.from("hidden_starter_templates").insert({ ...ownership(scope), default_id: defaultId });
+    // 23505 = this person already removed it here. That is the outcome asked for.
+    if (error && error.code !== "23505") fail("hide template", error);
   }
 
-  async restoreDefaults(ownerId: string) {
-    const { error } = await this.db.from("hidden_default_templates").delete().eq("owner_id", ownerId);
+  async restoreDefaults(scope: Scope) {
+    const { error } = await within(this.db.from("hidden_starter_templates").delete(), scope);
     if (error) fail("restore templates", error);
+  }
+}
+
+/* ---------------- Presence ---------------- */
+
+export class SupabasePresenceRepo implements PresenceRepo {
+  constructor(private db: SupabaseClient) {}
+
+  async touch(scope: Scope & { workspaceId: string }, emailId: string, name: string) {
+    const mine = { email_id: emailId, user_id: scope.userId, workspace_id: scope.workspaceId, user_name: name, seen_at: new Date().toISOString() };
+    const { error } = await this.db.from("email_presence").upsert(mine, { onConflict: "email_id,user_id" });
+    if (error) fail("record presence", error);
+    const since = new Date(Date.now() - PRESENCE_WINDOW_MS).toISOString();
+    const others = await this.db.from("email_presence").select("user_name").eq("email_id", emailId).eq("workspace_id", scope.workspaceId).neq("user_id", scope.userId).gt("seen_at", since);
+    if (others.error) fail("read presence", others.error);
+    return (others.data ?? []).map((r: { user_name: string }) => r.user_name);
+  }
+
+  async leave(scope: Scope, emailId: string) {
+    const { error } = await this.db.from("email_presence").delete().eq("email_id", emailId).eq("user_id", scope.userId);
+    if (error) fail("clear presence", error);
   }
 }

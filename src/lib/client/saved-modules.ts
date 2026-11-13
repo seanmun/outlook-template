@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { z } from "zod";
 import { ModuleInstanceSchema, type ModuleInstance } from "@/lib/email/document";
+import { PERSONAL_LIMITS } from "@/lib/limits";
 
 const SavedModuleSchema = z.object({
   id: z.string().min(1).max(60),
@@ -22,7 +23,7 @@ const SavedModuleSchema = z.object({
 });
 export type SavedModule = z.infer<typeof SavedModuleSchema>;
 
-export const MAX_SAVED_MODULES = 40;
+export const MAX_SAVED_MODULES = PERSONAL_LIMITS.savedBlocks;
 const keyFor = (scope: string) => `otb.saved-modules.v1:${scope}`;
 const CHANGED = "otb:saved-modules";
 
@@ -161,9 +162,10 @@ export interface SavedModulesApi {
 
 /**
  * `scope` separates one account's saved modules from another's on a shared browser.
- * `inAccount` is true for a signed-in user: the list is then also kept in their account.
+ * `inAccount` is true for a signed-in user: the list is then also kept in their account (or, when
+ * `scope` is a team space, in the team's shared Library). `limit` is how many that Library can hold.
  */
-export function useSavedModules(scope: string, inAccount = false): SavedModulesApi {
+export function useSavedModules(scope: string, inAccount = false, limit = MAX_SAVED_MODULES): SavedModulesApi {
   const items = useSyncExternalStore(
     subscribe,
     () => read(scope),
@@ -172,13 +174,13 @@ export function useSavedModules(scope: string, inAccount = false): SavedModulesA
   const save = useCallback<SavedModulesApi["save"]>(
     (name, module, brandId) => {
       const current = read(scope);
-      if (current.length >= MAX_SAVED_MODULES) return `You can keep ${MAX_SAVED_MODULES} saved modules. Remove one first.`;
+      if (current.length >= limit) return `You can keep ${limit} saved blocks here. Remove one first.`;
       const item: SavedModule = { id: crypto.randomUUID(), name: name.trim().slice(0, 60) || "Saved module", brandId, savedAt: new Date().toISOString(), module: structuredClone(module) };
       if (!write(scope, [item, ...current])) return "This browser's storage is full or unavailable, so it could not be saved.";
       if (inAccount) void pushToAccount(scope, item);
       return null;
     },
-    [scope, inAccount],
+    [scope, inAccount, limit],
   );
   const remove = useCallback(
     (id: string) => {

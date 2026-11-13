@@ -9,13 +9,13 @@ import { useConfig } from "@/lib/client/config";
 /** One kind of thing in full: /library/emails, /library/blocks or /library/images. */
 export default function LibrarySectionPage({ params }: { params: Promise<{ section: string }> }) {
   const { section } = use(params);
-  const { ready } = useConfig();
+  const { ready, spaceKey } = useConfig();
   if (!(section in LIBRARY_SECTIONS)) notFound();
   return (
     <div className="flex min-h-screen flex-col">
       <DemoBanner />
       <AppHeader />
-      <main className="mx-auto w-full max-w-4xl flex-1 space-y-6 p-6">{ready ? <LibrarySectionView section={section as LibrarySection} /> : null}</main>
+      <main className="mx-auto w-full max-w-4xl flex-1 space-y-6 p-6">{ready ? <LibrarySectionView key={spaceKey} section={section as LibrarySection} /> : null}</main>
       <SiteFooter />
     </div>
   );

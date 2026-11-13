@@ -4,9 +4,10 @@
  */
 import type { EmailDocument } from "./document";
 import { EXAMPLES } from "./examples";
+import { PERSONAL_LIMITS } from "@/lib/limits";
 
-/** How many templates of their own a person can keep. Starter templates do not count. */
-export const MAX_TEMPLATES = 20;
+/** How many templates of their own a person can keep in their own Library. Starter templates do not count. Team spaces: see lib/limits. */
+export const MAX_TEMPLATES = PERSONAL_LIMITS.templates;
 
 export interface Template {
   id: string;

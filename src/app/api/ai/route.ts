@@ -51,7 +51,7 @@ async function offeredImages(ctx: HandlerContext | null, requested: RequestedIma
       out.push({ ref, src, name: img.name, width: img.width, height: img.height });
       continue;
     }
-    const stored = UUID_RE.test(img.assetId) ? await ctx.assets.read(ctx.userId, img.assetId) : null;
+    const stored = UUID_RE.test(img.assetId) ? await ctx.assets.read({ userId: ctx.userId, workspaceId: ctx.workspaceId }, img.assetId) : null;
     if (!stored) return errorResponse(400, `Image "${img.name}" was not found in your library.`);
     total += stored.data.length;
     if (total > MAX_IMAGE_BYTES_TOTAL) return errorResponse(413, "Those images are too large to send together. Remove some and try again.");

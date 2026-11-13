@@ -18,14 +18,17 @@ import { AiPanel } from "./ai-panel";
 import { ModulesPanel } from "./modules-panel";
 import { Preview } from "./preview";
 import { DragProvider } from "./drag";
+import { TeammatesHere } from "./teammates-here";
+import { limitsFor } from "@/lib/limits";
 import { Inspector } from "./inspector";
 
 const AUTOSAVE_MS = 1200;
 
 export function Editor({ id }: { id: string }) {
-  const { ready } = useConfig();
+  const { ready, spaceKey } = useConfig();
   if (!ready) return <div className="p-10 text-sm text-neutral-500">Loading…</div>;
-  return <EditorForVisitor id={id} />;
+  // Switching between your own Library and a team space reloads the email from the Library now in view.
+  return <EditorForVisitor key={spaceKey} id={id} />;
 }
 
 function EditorForVisitor({ id }: { id: string }) {
@@ -38,7 +41,7 @@ function EditorForVisitor({ id }: { id: string }) {
     stores.drafts
       .get(id)
       .then((d) => {
-        if (!d) return setLoadError("Draft not found.");
+        if (!d) return setLoadError("That email is not in this Library. It may have been deleted, or it may be in your other Library (switch at the top).");
         const v = validateDocument(d.document);
         if (!v.ok) return setLoadError(`This draft is invalid and cannot be opened: ${v.issues[0]?.path} ${v.issues[0]?.message}`);
         setInitial({ doc: v.doc, revision: d.revision });
@@ -158,7 +161,8 @@ function LoadedEditor({
 
   // Saved modules reference the account's own images, so each account (and "no account") keeps its own list.
   const account = useConfig();
-  const saved = useSavedModules(account.userId ?? "local", account.mode === "production" && !!account.userId);
+  const inAccount = account.mode === "production" && !!account.userId;
+  const saved = useSavedModules(account.workspaceId ?? account.userId ?? "local", inAccount, limitsFor(inAccount && !!account.workspaceId).savedBlocks);
 
   const ctx: EditorCtx = { state, dispatch, change, brand, assets: stores.assets, saveStatus, saveError, assetsVersion, refreshAssets, saved };
 
@@ -167,6 +171,7 @@ function LoadedEditor({
       <DragProvider>
       <div className="flex h-screen flex-col overflow-hidden">
         <DemoBanner />
+        {account.workspaceId && <TeammatesHere emailId={id} document={state.doc} drafts={stores.drafts} />}
         <TopBar onRetrySave={() => save(state.doc, state.version)} saveNow={saveNow} />
         <div className="flex min-h-0 flex-1">
           <aside className="flex w-80 shrink-0 flex-col border-r bg-white">

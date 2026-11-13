@@ -15,6 +15,8 @@ import { useConfig } from "@/lib/client/config";
 import { useSavedModules, type SavedModule } from "@/lib/client/saved-modules";
 import { storesFor, type AssetClient, type DraftSummary, type LibraryImage, type TemplateList } from "@/lib/client/stores";
 import { getBrand } from "@/lib/email/brands";
+import { formatMb, limitsFor } from "@/lib/limits";
+import { TeamName } from "@/components/team";
 import { COLUMNS_TYPE, type EmailDocument } from "@/lib/email/document";
 import { defaultTemplates, emailFromTemplate, type Template } from "@/lib/email/templates";
 import { getModule } from "@/lib/email/registry";
@@ -28,14 +30,37 @@ export const LIBRARY_SECTIONS = {
 } as const;
 export type LibrarySection = keyof typeof LIBRARY_SECTIONS;
 
+/** Which Library is in view, where its things are kept, and how much it can hold. */
 function useWhere() {
   const config = useConfig();
   const inAccount = config.mode === "production" && !!config.userId;
-  return { config, inAccount, where: inAccount ? "Saved to your account." : "Saved in this browser only." };
+  const team = inAccount && !!config.workspaceId;
+  return {
+    config,
+    inAccount,
+    team,
+    /** The key that keeps one Library's browser-side lists apart from another's. */
+    scope: config.workspaceId ?? config.userId ?? "local",
+    /** Limits apply to accounts and team spaces; a visitor's browser has no set limit. */
+    limits: inAccount ? limitsFor(team) : null,
+    where: team ? "Shared with everyone in this team space." : inAccount ? "Saved to your account." : "Saved in this browser only.",
+  };
+}
+
+/** "12 of 50", turning amber when nearly full and red when full. */
+function Usage({ used, limit, format = String, note }: { used: number; limit: number; format?: (n: number) => string; note?: string }) {
+  const share = used / limit;
+  return (
+    <span className={`ml-2 text-sm font-normal ${share >= 1 ? "text-red-600" : share >= 0.8 ? "text-amber-700" : "text-neutral-500"}`}>
+      {format(used)} of {format(limit)}
+      {note ? ` ${note}` : ""}
+      {share >= 1 ? " (full)" : share >= 0.8 ? " (nearly full)" : ""}
+    </span>
+  );
 }
 
 /** One kind of thing: a heading with its count, a line saying where it is kept, and the items. */
-function Card(props: { section: LibrarySection; count: number | null; preview: boolean; action?: React.ReactNode; children: React.ReactNode }) {
+function Card(props: { section: LibrarySection; count: number | null; usage?: React.ReactNode; preview: boolean; action?: React.ReactNode; children: React.ReactNode }) {
   const { where } = useWhere();
   const { title, blurb } = LIBRARY_SECTIONS[props.section];
   return (
@@ -44,7 +69,7 @@ function Card(props: { section: LibrarySection; count: number | null; preview: b
         <div className="min-w-0">
           <h2 id={`${props.section}-heading`} className="text-lg font-semibold">
             {title}
-            {props.count ? <span className="ml-1.5 text-sm font-normal text-neutral-500">{props.count}</span> : null}
+            {props.usage ?? (props.count ? <span className="ml-1.5 text-sm font-normal text-neutral-500">{props.count}</span> : null)}
           </h2>
           <p className="mt-1 text-sm text-neutral-500">
             {blurb} {where}
@@ -140,7 +165,7 @@ function SavedEmailThumb({ id }: { id: string }) {
 }
 
 export function EmailsCard({ preview = false }: { preview?: boolean }) {
-  const { config } = useWhere();
+  const { config, limits } = useWhere();
   const { drafts } = useMemo(() => storesFor(config.mode), [config.mode]);
   const router = useRouter();
   const [list, setList] = useState<DraftSummary[] | null>(null);
@@ -175,6 +200,7 @@ export function EmailsCard({ preview = false }: { preview?: boolean }) {
     <Card
       section="emails"
       count={list?.length ?? null}
+      usage={limits && list ? <Usage used={list.length} limit={limits.emails} /> : undefined}
       preview={preview}
       action={
         <Link href="/new" className={buttonVariants({ size: "sm" })}>
@@ -327,9 +353,17 @@ export function TemplateTile({ template, busy, onStart, onRemove }: { template: 
 
 export function TemplatesCard({ preview = false }: { preview?: boolean }) {
   const { list, starting, start, remove, restoreStarters } = useTemplates();
+  const { limits } = useWhere();
   const shown = preview ? list?.templates.slice(0, 4) : list?.templates;
+  const own = list?.templates.filter((t) => !t.isDefault).length ?? 0;
   return (
-    <Card section="templates" count={list?.templates.length ?? null} preview={preview}>
+    <Card
+      section="templates"
+      count={list?.templates.length ?? null}
+      // Starter templates are free; only the ones a person saved count towards the limit.
+      usage={limits && list && own > 0 ? <Usage used={own} limit={limits.templates} note="saved by you" /> : undefined}
+      preview={preview}
+    >
       {!shown ? (
         <Empty>Loading…</Empty>
       ) : shown.length === 0 ? (
@@ -381,9 +415,9 @@ function BlockCard({ item, assets, onRemove }: { item: SavedModule; assets: Asse
 }
 
 export function BlocksCard({ preview = false }: { preview?: boolean }) {
-  const { config, inAccount } = useWhere();
+  const { config, inAccount, scope, limits } = useWhere();
   const { assets } = useMemo(() => storesFor(config.mode), [config.mode]);
-  const saved = useSavedModules(config.userId ?? "local", inAccount);
+  const saved = useSavedModules(scope, inAccount, limits?.savedBlocks);
   // In the browser-only store, pictures inside saved blocks can be drawn only once the image list has been read.
   const [imagesReady, setImagesReady] = useState(false);
   useEffect(() => {
@@ -399,7 +433,7 @@ export function BlocksCard({ preview = false }: { preview?: boolean }) {
 
   const shown = preview ? saved.items.slice(0, 3) : saved.items;
   return (
-    <Card section="blocks" count={saved.items.length} preview={preview}>
+    <Card section="blocks" count={saved.items.length} usage={limits ? <Usage used={saved.items.length} limit={limits.savedBlocks} /> : undefined} preview={preview}>
       {shown.length === 0 ? (
         <Empty>None yet. In the editor, select a block or row and press the bookmark in its toolbar.</Empty>
       ) : (
@@ -427,7 +461,7 @@ export function BlocksCard({ preview = false }: { preview?: boolean }) {
 /* ---------------- Images ---------------- */
 
 export function ImagesCard({ preview = false }: { preview?: boolean }) {
-  const { config } = useWhere();
+  const { config, limits } = useWhere();
   const { assets } = useMemo(() => storesFor(config.mode), [config.mode]);
   const [images, setImages] = useState<LibraryImage[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -478,6 +512,7 @@ export function ImagesCard({ preview = false }: { preview?: boolean }) {
     <Card
       section="images"
       count={images?.length ?? null}
+      usage={limits && images ? <Usage used={images.reduce((sum, img) => sum + img.bytes, 0)} limit={limits.imageBytes} format={formatMb} /> : undefined}
       preview={preview}
       action={
         <>
@@ -526,11 +561,16 @@ export function ImagesCard({ preview = false }: { preview?: boolean }) {
 /* ---------------- Pages ---------------- */
 
 export function LibraryOverview() {
+  const { team } = useWhere();
   return (
     <>
       <header>
-        <h1 className="text-2xl font-semibold">Library</h1>
-        <p className="mt-1 text-sm text-neutral-500">Your emails, templates, saved blocks and images in one place.</p>
+        <h1 className="text-2xl font-semibold">{team ? <TeamName fallback="Team space" /> : "Library"}</h1>
+        <p className="mt-1 text-sm text-neutral-500">
+          {team
+            ? "Your team\u2019s shared Library. Everyone in the team can open, change and reuse what is here. Switch back to your own Library from the menu at the top."
+            : "Your emails, templates, saved blocks and images in one place."}
+        </p>
       </header>
       <EmailsCard preview />
       <TemplatesCard preview />

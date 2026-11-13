@@ -2,6 +2,7 @@
 import { createContext, useContext, useMemo } from "react";
 import { useAuth } from "@clerk/nextjs";
 import type { ExporterStatus } from "@/lib/export/exporters";
+import { TEAMS_ENABLED } from "@/lib/teams";
 
 export interface ServerConfig {
   mode: "production" | "demo";
@@ -17,36 +18,50 @@ export interface ClientConfig extends ServerConfig {
   authAvailable: boolean;
   /** The signed-in account, or null. Used to keep browser-stored data apart per account. */
   userId: string | null;
+  /** The team space the person is working in, or null for their own Library. Always null while team spaces are switched off. */
+  workspaceId: string | null;
+  /** Changes whenever the Library in view changes; use it as a React key so screens reload their lists. */
+  spaceKey: string;
   /** Auth state is known; wait for this before choosing a store. */
   ready: boolean;
 }
 
 const Ctx = createContext<ClientConfig | null>(null);
 
-export function ConfigProvider({ value, userId = null, children }: { value: ServerConfig; userId?: string | null; children: React.ReactNode }) {
-  if (value.mode === "production") return <AuthAwareConfig server={value} serverUserId={userId}>{children}</AuthAwareConfig>;
-  return <Ctx.Provider value={{ ...value, authAvailable: false, userId: null, ready: true }}>{children}</Ctx.Provider>;
+export function ConfigProvider({ value, userId = null, workspaceId = null, children }: { value: ServerConfig; userId?: string | null; workspaceId?: string | null; children: React.ReactNode }) {
+  if (value.mode === "production") {
+    return (
+      <AuthAwareConfig server={value} serverUserId={userId} serverWorkspaceId={workspaceId}>
+        {children}
+      </AuthAwareConfig>
+    );
+  }
+  return <Ctx.Provider value={{ ...value, authAvailable: false, userId: null, workspaceId: null, spaceKey: "browser", ready: true }}>{children}</Ctx.Provider>;
 }
 
-function AuthAwareConfig({ server, serverUserId, children }: { server: ServerConfig; serverUserId: string | null; children: React.ReactNode }) {
+function AuthAwareConfig({ server, serverUserId, serverWorkspaceId, children }: { server: ServerConfig; serverUserId: string | null; serverWorkspaceId: string | null; children: React.ReactNode }) {
   const auth = useAuth();
   // The server already knows who is signed in, so the app never waits on Clerk's
   // browser script: if it is slow or fails to load, the signed-out app still works.
   const userId = auth.isLoaded ? (auth.isSignedIn ? auth.userId : null) : serverUserId;
+  // The team space is the organization the Clerk session is in. The server reads the same session, so the two always agree.
+  const workspaceId = !TEAMS_ENABLED || !userId ? null : auth.isLoaded ? (auth.orgId ?? null) : serverWorkspaceId;
   const value = useMemo<ClientConfig>(
     () =>
       userId
-        ? { ...server, authAvailable: true, userId, ready: true }
+        ? { ...server, authAvailable: true, userId, workspaceId, spaceKey: workspaceId ?? `me:${userId}`, ready: true }
         : {
             ...server,
             mode: "demo",
             missing: [],
             authAvailable: true,
             userId: null,
+            workspaceId: null,
+            spaceKey: "browser",
             ready: true,
             ai: server.ai.enabled ? { enabled: false, reason: "Sign in to use AI. Everything else works without an account." } : server.ai,
           },
-    [server, userId],
+    [server, userId, workspaceId],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

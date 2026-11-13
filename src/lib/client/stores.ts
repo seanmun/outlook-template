@@ -54,6 +54,8 @@ export interface UploadedImage {
 
 /** An image the user uploaded earlier, ready to drop into any email. */
 export interface LibraryImage extends UploadedImage {
+  /** File size in bytes, for showing how full the Library is. */
+  bytes: number;
   name: string;
   thumbUrl: string;
 }
@@ -109,8 +111,8 @@ export const apiAssetClient: AssetClient = {
     return { src: { kind: "asset", assetId: asset.id }, width: asset.width, height: asset.height };
   },
   async list() {
-    const { assets } = await api<{ assets: { id: string; width: number; height: number; originalFilename: string }[] }>("/api/assets");
-    return assets.map((a) => ({ src: { kind: "asset" as const, assetId: a.id }, width: a.width, height: a.height, name: a.originalFilename, thumbUrl: `/api/assets/${encodeURIComponent(a.id)}` }));
+    const { assets } = await api<{ assets: { id: string; width: number; height: number; byteSize?: number; originalFilename: string }[] }>("/api/assets");
+    return assets.map((a) => ({ src: { kind: "asset" as const, assetId: a.id }, width: a.width, height: a.height, bytes: a.byteSize ?? 0, name: a.originalFilename, thumbUrl: `/api/assets/${encodeURIComponent(a.id)}` }));
   },
   previewUrl(src) {
     return src.kind === "sample" ? sampleDataUrl(src.sampleId) : `/api/assets/${encodeURIComponent(src.assetId)}`;
@@ -248,7 +250,8 @@ export const localAssetClient: AssetClient = {
     for (const { key, value } of rows) {
       localCache.set(key, value);
       const dims = await imageDimensions(value).catch(() => null);
-      if (dims) out.push({ src: { kind: "asset", assetId: key }, ...dims, name: "Image", thumbUrl: value });
+      // A data URL is about a third longer than the file it holds.
+      if (dims) out.push({ src: { kind: "asset", assetId: key }, ...dims, bytes: Math.round((value.length - value.indexOf(",") - 1) * 0.75), name: "Image", thumbUrl: value });
     }
     return out.reverse();
   },
