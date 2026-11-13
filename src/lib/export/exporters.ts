@@ -20,18 +20,19 @@ export const oftExporter: Exporter = {
     verification: {
       generation: "implemented",
       structuralChecks: "passed",
-      outlookManual: "not-verified",
+      outlookManual: "verified",
       notes:
-        "In-house MS-OXMSG writer on a compound file with the template CLSID {0006F046-0000-0000-C000-000000000046}. Parsed back by three independent readers in tests (SheetJS cfb, @kenjiuno/msgreader, and Python olefile/extract_msg during the spike). Not yet opened in any Outlook build.",
+        "Verified 2026-11-13 by two helpers: the template opens as a new email in classic Outlook for Windows and in the new Outlook, pictures show, and special characters (curly quotes, accents, dashes) are correct. Classic Outlook rounds no button drawn with code (CSS or VML), so rounded buttons are saved as pictures in this file. In-house MS-OXMSG writer on a compound file with the template CLSID {0006F046-0000-0000-C000-000000000046}; parsed back by independent readers in tests.",
     },
   },
   availability: () => ({ enabled: true }),
   async export(input: ExportInput): Promise<ExportFile[]> {
+    const body = input.windows ?? input;
     const data = writeMsg({
       subject: input.subject,
-      html: input.htmlCid,
+      html: body.htmlCid,
       plainText: input.plainText,
-      images: input.images.map((i) => ({ contentId: i.contentId, filename: i.filename, mimeType: i.mimeType, data: i.data })),
+      images: body.images.map((i) => ({ contentId: i.contentId, filename: i.filename, mimeType: i.mimeType, data: i.data })),
     });
     return [{ filename: `${input.baseFilename}.oft`, mimeType: this.info.mimeType, data }];
   },

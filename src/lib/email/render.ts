@@ -13,6 +13,7 @@ import type { Brand } from "./brands";
 import { getModule, rendererFor } from "./registry";
 import { richTextToPlain, type RichText } from "./richtext";
 import { TABLE_ATTRS } from "./modules/shared";
+import type { ButtonPicture } from "./modules/types";
 
 export const CONTENT_WIDTH = 600;
 
@@ -29,6 +30,8 @@ export interface RenderOptions {
   annotate?: boolean;
   /** Preview only: these modules play a "drop into place" animation on this render, one after another. */
   animateModuleIds?: string[];
+  /** Windows template only: the picture to show for a rounded button, by block id. */
+  buttonPicture?: (moduleId: string) => ButtonPicture | null;
 }
 
 /**
@@ -65,6 +68,7 @@ function renderModules(modules: ModuleInstance[], brand: Brand, opts: RenderOpti
         rowAttrs,
         resolveImage: opts.resolveImage,
         contentWidth,
+        buttonPicture: opts.buttonPicture?.(m.id) ?? null,
         renderColumn: (column, width) => renderModules(m.columns?.[column]?.blocks ?? [], brand, opts, width),
         columnAttrs: (column) => (opts.annotate ? ` data-column="${column}"` : ""),
         imageAttrs: (key) => (opts.annotate ? ` data-image-field="${escapeAttr(key)}"` : ""),

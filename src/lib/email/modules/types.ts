@@ -23,6 +23,15 @@ export interface RenderContext<C, S> {
   linkAttrs: (key: string) => string;
   /** Attributes for a column cell (preview annotations; empty on export). */
   columnAttrs: (column: number) => string;
+  /** Windows template only: a picture of this block's rounded button, to show in place of the code-drawn one. */
+  buttonPicture: ButtonPicture | null;
+}
+
+/** A picture of a button, at the size (in px) it takes in the email. */
+export interface ButtonPicture {
+  src: string;
+  width: number;
+  height: number;
 }
 
 export type ModuleRenderer<C, S> = (ctx: RenderContext<C, S>) => string;

@@ -4,11 +4,11 @@
  * authorization rules in one testable place.
  */
 import { z } from "zod";
-import type { EmailDocument } from "@/lib/email/document";
+import { ModuleIdSchema, type EmailDocument } from "@/lib/email/document";
 import { validateDocument } from "@/lib/email/registry";
 import { collectImageSources } from "@/lib/email/render";
 import { sampleBytes } from "@/lib/email/samples";
-import { buildExportPackage, MissingImageError, type ImageLoader } from "@/lib/export/pipeline";
+import { buildExportPackage, MAX_BUTTON_PICTURE_BYTES, MissingImageError, type ButtonPictureInput, type ImageLoader } from "@/lib/export/pipeline";
 import { ExportFailedError, ExporterUnavailableError, type ExporterId } from "@/lib/export/types";
 import { CfbTooLargeError } from "@/lib/export/cfb-writer";
 import { MAX_UPLOAD_BYTES, readImageInfo } from "./image-info";
@@ -384,9 +384,27 @@ function exportErrorResponse(err: unknown): Response {
   return errorResponse(500, "Export failed unexpectedly.");
 }
 
-async function runExport(doc: EmailDocument, formats: ExporterId[], loadImage: ImageLoader): Promise<Response> {
+/** Pictures of rounded buttons, drawn in the browser and posted with a download request. */
+const ButtonPicturesSchema = z
+  .record(ModuleIdSchema, z.object({ png: z.string().max(Math.ceil((MAX_BUTTON_PICTURE_BYTES * 4) / 3) + 8), width: z.number().int(), height: z.number().int() }))
+  .refine((r) => Object.keys(r).length <= 60)
+  .optional();
+
+/** Anything malformed is dropped: the button then falls back to the code-drawn one instead of failing the download. */
+function readButtonPictures(raw: unknown): Record<string, ButtonPictureInput> {
+  const parsed = ButtonPicturesSchema.safeParse(raw);
+  const out: Record<string, ButtonPictureInput> = {};
+  if (!parsed.success || !parsed.data) return out;
+  for (const [id, p] of Object.entries(parsed.data)) {
+    if (!/^[A-Za-z0-9+/]+=*$/.test(p.png)) continue;
+    out[id] = { data: new Uint8Array(Buffer.from(p.png, "base64")), width: p.width, height: p.height };
+  }
+  return out;
+}
+
+async function runExport(doc: EmailDocument, formats: ExporterId[], loadImage: ImageLoader, buttonPictures?: Record<string, ButtonPictureInput>): Promise<Response> {
   try {
-    const pkg = await buildExportPackage({ doc, formats, loadImage });
+    const pkg = await buildExportPackage({ doc, formats, loadImage, buttonPictures });
     return new Response(pkg.zip as BodyInit, {
       headers: {
         "Content-Type": "application/zip",
@@ -402,7 +420,7 @@ async function runExport(doc: EmailDocument, formats: ExporterId[], loadImage: I
 
 export async function exportForUser(ctx: HandlerContext, body: unknown) {
   if (!ctx.userId) return unauthorized();
-  const b = body as { document?: unknown; formats?: unknown };
+  const b = body as { document?: unknown; formats?: unknown; buttonPictures?: unknown };
   const formats = FormatsSchema.safeParse(b?.formats);
   if (!formats.success) return errorResponse(400, "Unknown or missing export formats.");
   const v = await validateOwnedDocument({ ...ctx, userId: ctx.userId }, b?.document);
@@ -415,7 +433,7 @@ export async function exportForUser(ctx: HandlerContext, body: unknown) {
     }
     const r = await ctx.assets.read(scope, src.assetId);
     return r ? { data: r.data } : null;
-  });
+  }, readButtonPictures(b?.buttonPictures));
 }
 
 const DemoExportBody = z.object({
@@ -423,6 +441,7 @@ const DemoExportBody = z.object({
   formats: FormatsSchema,
   /** Demo mode only: images live in the browser, so bytes are posted with the request. */
   localImages: z.record(z.string().regex(/^local_[A-Za-z0-9_-]{6,40}$/), z.string().max(8_000_000)).default({}),
+  buttonPictures: z.unknown().optional(),
 });
 
 export async function exportForDemo(body: unknown) {
@@ -440,5 +459,5 @@ export async function exportForDemo(body: unknown) {
     if (!b64) return null;
     const data = Uint8Array.from(Buffer.from(b64, "base64"));
     return readImageInfo(data) ? { data } : null;
-  });
+  }, readButtonPictures(parsed.data.buttonPictures));
 }

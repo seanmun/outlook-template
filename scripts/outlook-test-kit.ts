@@ -23,8 +23,11 @@ import { prepareExportInput, type ImageLoader } from "../src/lib/export/pipeline
  * (outlook-test-kit-3, outlook-test-kit-4, ...), the number is in every file name, the email
  * subject and the bottom of the email, and an existing kit is never overwritten. That way a
  * screenshot always shows which kit it came from.
+ *
+ * Kit 4 was not made by this script: it is a real download from the live site (a rounded button
+ * saved as a picture), so the next kit built here is 5.
  */
-const KIT = 3;
+const KIT = 5;
 const out = path.resolve(`outlook-test-kit-${KIT}`);
 const BUTTON_CID = "button3@outlook-test-kit";
 const BLUE = "#1D4ED8";

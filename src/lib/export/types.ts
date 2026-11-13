@@ -52,6 +52,11 @@ export interface ExportInput {
   plainText: string;
   images: ExportImage[];
   baseFilename: string;
+  /**
+   * Set when the email has rounded buttons with pictures supplied: the body and images for the
+   * Windows template, where each rounded button is a picture (classic Outlook rounds nothing else).
+   */
+  windows?: { htmlCid: string; images: ExportImage[] };
 }
 
 export interface ExportFile {

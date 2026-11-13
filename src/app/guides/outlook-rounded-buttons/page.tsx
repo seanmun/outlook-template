@@ -29,7 +29,7 @@ const FAQ = [
 const jsonLd = {
   "@context": "https://schema.org",
   "@graph": [
-    { "@type": "Article", headline: TITLE, description: DESCRIPTION, url: `${SITE_URL}${PATH}`, dateModified: "2026-11-12", inLanguage: "en", publisher: { "@type": "Organization", name: SITE_NAME, url: SITE_URL } },
+    { "@type": "Article", headline: TITLE, description: DESCRIPTION, url: `${SITE_URL}${PATH}`, dateModified: "2026-11-13", inLanguage: "en", publisher: { "@type": "Organization", name: SITE_NAME, url: SITE_URL } },
     { "@type": "FAQPage", mainEntity: FAQ.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })) },
   ],
 };
@@ -77,7 +77,7 @@ export default function Page() {
       tag="Outlook, explained"
       title="Rounded buttons in Outlook"
       path={PATH}
-      updated="12 November 2026"
+      updated="13 November 2026"
       jsonLd={jsonLd}
       intro={
         <>
@@ -183,8 +183,18 @@ export default function Page() {
             own editor and rewrites the HTML before sending, and not everything survives that.
           </p>
           <p>
-            We are testing all three methods through that round trip in classic Outlook for Windows and will publish the results here. Until then,
-            OUTLOOKSUCKS.email exports square buttons, the one method that cannot fail.
+            We tested all three methods through that round trip on 13 November 2026, by opening a template in classic Outlook for Windows and sending it:
+          </p>
+          <ul>
+            <li>The padded table cell came out square, as expected.</li>
+            <li>The VML shape did not survive. Two different versions both arrived as a thin bar across the full width of the email.</li>
+            <li>The picture arrived rounded and correct.</li>
+          </ul>
+          <p>
+            In the new Outlook for Windows, which draws email the way a browser does, all three arrived rounded. So for a template that has to look right in
+            classic Outlook, a picture is the only method that works. OUTLOOKSUCKS.email does this for you: choose rounded corners on a button, and the Windows
+            download saves that button as a picture with its label as the alt text. Square buttons stay as editable text, and the Mac download keeps code-drawn
+            corners, which Outlook for Mac shows correctly.
           </p>
         </Prose>
       </section>

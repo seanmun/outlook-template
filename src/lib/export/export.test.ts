@@ -7,7 +7,9 @@ import { asciiHtml, CLSID_OFT_TEMPLATE, writeMsg } from "./msg-writer";
 import { htmlToEncapsulatedRtf, rtfStream } from "./rtf-body";
 import { encodeHeaderValue, writeMime } from "./mime-writer";
 import { buildExportPackage, MissingImageError, prepareExportInput, sniffImageType, type ImageLoader } from "./pipeline";
-import { emltplExporter } from "./exporters";
+import { emltplExporter, getExporter } from "./exporters";
+import { requireBrand } from "@/lib/email/brands";
+import { getModule } from "@/lib/email/registry";
 import { ExporterUnavailableError } from "./types";
 import { sampleEmailDocument, newEmailDocument } from "@/lib/email/starter";
 import { sampleBytes } from "@/lib/email/samples";
@@ -91,6 +93,62 @@ describe("OFT (MS-OXMSG) writer", () => {
 
     const cfb = CFB.read(out, { type: "array" });
     expect(cfb.FileIndex[0].clsid.toUpperCase()).toBe("46F0060000000000C000000000000046");
+  });
+});
+
+describe("rounded buttons", () => {
+  // A 1x1 PNG is enough: the pipeline checks it is a PNG, not what it shows.
+  const png = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64"));
+  const withButton = (radius?: number) => {
+    const doc = newEmailDocument("plain", "Buttons");
+    doc.subject = "Buttons";
+    const brand = requireBrand("plain");
+    const { content, settings } = getModule("cta")!.defaults(brand);
+    const s: Record<string, unknown> = { ...settings };
+    if (radius === undefined) delete s.radius;
+    else s.radius = radius;
+    doc.modules = [{ id: "m_button1", type: "cta", content: { ...content, label: "Save a seat", url: "https://example.com/seat" }, settings: s }];
+    return doc;
+  };
+  const noImages: ImageLoader = async () => null;
+
+  it("are square unless asked for, including in emails made before the setting existed", async () => {
+    for (const doc of [withButton(), withButton(0)]) {
+      const input = await prepareExportInput(doc, noImages, { "m_button1": { data: png, width: 160, height: 44 } });
+      expect(input.windows).toBeUndefined();
+      expect(input.htmlCid).not.toContain("border-radius");
+    }
+  });
+
+  it("are a picture in the Windows template and code everywhere else", async () => {
+    const input = await prepareExportInput(withButton(8), noImages, { "m_button1": { data: png, width: 160, height: 44 } });
+    expect(input.htmlCid).toContain("border-radius:8px");
+    expect(input.htmlCid).not.toContain("btn1.");
+    expect(input.windows!.images.map((i) => i.filename)).toEqual(["button-1.png"]);
+    const cid = input.windows!.images[0].contentId;
+    expect(input.windows!.htmlCid).toContain(`<a href="https://example.com/seat" target="_blank" style="text-decoration:none;"><img src="cid:${cid}" width="160" height="44" alt="Save a seat"`);
+    expect(input.windows!.htmlCid).not.toContain("border-radius");
+
+    const [oft] = await getExporter("oft")!.export(input);
+    const text = new TextDecoder("latin1").decode(oft.data);
+    expect(text).toContain(`cid:${cid}`);
+    const [mac] = await emltplExporter.export(input);
+    expect(new TextDecoder().decode(mac.data)).not.toContain(cid);
+  });
+
+  it("fall back to code when the picture is missing, is for another block, or is not a sane PNG", async () => {
+    const bad: Record<string, { data: Uint8Array; width: number; height: number }>[] = [
+      {},
+      { m_other001: { data: png, width: 160, height: 44 } },
+      { "m_button1": { data: new Uint8Array([1, 2, 3]), width: 160, height: 44 } },
+      { "m_button1": { data: png, width: 5000, height: 44 } },
+      { "m_button1": { data: png, width: 160.5, height: 44 } },
+    ];
+    for (const pictures of bad) {
+      const input = await prepareExportInput(withButton(8), noImages, pictures);
+      expect(input.windows).toBeUndefined();
+      expect(input.htmlCid).toContain("border-radius:8px");
+    }
   });
 });
 
@@ -211,7 +269,7 @@ describe("export pipeline", () => {
     expect(names).toContain("sample-quarterly-town-hall.oft");
     expect(names).toContain("README.txt");
     const readme = await zip.file("README.txt")!.async("string");
-    expect(readme).toMatch(/Outlook manual verification=not-verified/);
+    expect(readme).toMatch(/Outlook manual verification=verified/);
     expect(readme).toMatch(/UNRESOLVED ITEMS/);
     expect(pkg.issues.length).toBeGreaterThan(0);
   });

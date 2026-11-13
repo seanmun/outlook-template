@@ -4,7 +4,7 @@
  */
 import JSZip from "jszip";
 import { requireBrand } from "@/lib/email/brands";
-import type { EmailDocument } from "@/lib/email/document";
+import { allModules, type EmailDocument } from "@/lib/email/document";
 import type { ImageSource } from "@/lib/email/fields";
 import { findContentIssues, type ContentIssue } from "@/lib/email/issues";
 import { assertValidDocument } from "@/lib/email/registry";
@@ -47,7 +47,31 @@ export function slugify(s: string): string {
   );
 }
 
-export async function prepareExportInput(rawDoc: EmailDocument, loadImage: ImageLoader): Promise<ExportInput> {
+/** A picture of one rounded button, drawn in the sender's browser. Width and height are its size in the email, in px. */
+export interface ButtonPictureInput {
+  data: Uint8Array;
+  width: number;
+  height: number;
+}
+
+export const MAX_BUTTON_PICTURE_BYTES = 300 * 1024;
+
+/** Keeps only pictures that belong to a rounded button in this email and are sane PNGs of a plausible size. */
+function usableButtonPictures(doc: EmailDocument, pictures: Record<string, ButtonPictureInput> | undefined): Map<string, ButtonPictureInput> {
+  const out = new Map<string, ButtonPictureInput>();
+  if (!pictures) return out;
+  for (const m of allModules(doc)) {
+    const p = pictures[m.id];
+    if (!p || m.type !== "cta" || !(Number((m.settings as { radius?: number }).radius) > 0)) continue;
+    const whole = (n: number, min: number, max: number) => Number.isInteger(n) && n >= min && n <= max;
+    if (!whole(p.width, 16, 600) || !whole(p.height, 12, 200)) continue;
+    if (p.data.length > MAX_BUTTON_PICTURE_BYTES || sniffImageType(p.data) !== "image/png") continue;
+    out.set(m.id, p);
+  }
+  return out;
+}
+
+export async function prepareExportInput(rawDoc: EmailDocument, loadImage: ImageLoader, buttonPictures?: Record<string, ButtonPictureInput>): Promise<ExportInput> {
   const doc = assertValidDocument(rawDoc);
   requireBrand(doc.brandId);
 
@@ -73,7 +97,32 @@ export async function prepareExportInput(rawDoc: EmailDocument, loadImage: Image
 
   const htmlCid = renderEmailHtml(doc, { resolveImage: (src) => `cid:${images.get(imageSourceKey(src))!.contentId}` });
   const htmlFiles = renderEmailHtml(doc, { resolveImage: (src) => images.get(imageSourceKey(src))!.relativePath });
+
+  // The Windows template gets its own body when there are rounded buttons with pictures to show.
+  const pictures = usableButtonPictures(doc, buttonPictures);
+  let windows: ExportInput["windows"];
+  if (pictures.size > 0) {
+    const stamp = Date.now().toString(36);
+    const byModule = new Map<string, { image: ExportImage; width: number; height: number }>();
+    let b = 0;
+    for (const [moduleId, p] of pictures) {
+      b++;
+      const filename = `button-${b}.png`;
+      byModule.set(moduleId, { image: { contentId: `btn${b}.${stamp}@outlook-template`, filename, mimeType: "image/png", data: p.data, relativePath: `images/${filename}` }, width: p.width, height: p.height });
+    }
+    windows = {
+      htmlCid: renderEmailHtml(doc, {
+        resolveImage: (src) => `cid:${images.get(imageSourceKey(src))!.contentId}`,
+        buttonPicture: (moduleId) => {
+          const hit = byModule.get(moduleId);
+          return hit ? { src: `cid:${hit.image.contentId}`, width: hit.width, height: hit.height } : null;
+        },
+      }),
+      images: [...images.values(), ...[...byModule.values()].map((v) => v.image)],
+    };
+  }
   return {
+    windows,
     subject: doc.subject,
     htmlCid,
     htmlFiles,
@@ -146,6 +195,8 @@ export async function buildExportPackage(opts: {
   doc: EmailDocument;
   formats: ExporterId[];
   loadImage: ImageLoader;
+  /** Pictures of the email's rounded buttons, by block id, for the Windows template. */
+  buttonPictures?: Record<string, ButtonPictureInput>;
 }): Promise<ExportPackageResult> {
   if (opts.formats.length === 0) throw new Error("Choose at least one export format.");
   const exporters = opts.formats.map((id) => {
@@ -156,7 +207,7 @@ export async function buildExportPackage(opts: {
     return e;
   });
 
-  const input = await prepareExportInput(opts.doc, opts.loadImage);
+  const input = await prepareExportInput(opts.doc, opts.loadImage, opts.buttonPictures);
   const zip = new JSZip();
   for (const e of exporters) {
     let files: ExportFile[];

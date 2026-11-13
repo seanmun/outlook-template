@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TextAd } from "@/components/ad-slot";
 import { useConfig } from "@/lib/client/config";
+import { buttonPicturesForExport, roundedButtons } from "@/lib/client/button-pictures";
 import { localImagesForExport } from "@/lib/client/stores";
 import { findContentIssues } from "@/lib/email/issues";
 import type { ExporterId } from "@/lib/export/types";
@@ -67,6 +68,7 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const config = useConfig();
   const { state } = useEditor();
   const issues = useMemo(() => (open ? findContentIssues(state.doc) : []), [open, state.doc]);
+  const hasRoundedButtons = useMemo(() => open && roundedButtons(state.doc).length > 0, [open, state.doc]);
   const [selected, setSelected] = useState<Set<ExporterId>>(() => new Set(config.exporters.filter((e) => e.availability.enabled && !e.developmentOnly).map((e) => e.id)));
   const [developerView, setDeveloperView] = useState(false);
   const macAvailable = config.exporters.some((e) => e.id === "emltpl" && e.availability.enabled);
@@ -90,10 +92,12 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     try {
       // Visitors always get the Outlook template. Other formats are only offered in the developer view.
       const formats: ExporterId[] = developerView ? [...selected] : both ? ["oft", "emltpl"] : [mac ? "emltpl" : "oft"];
+      // Rounded buttons go into the Windows template as pictures, drawn here in the browser.
+      const buttonPictures = formats.includes("oft") ? buttonPicturesForExport(state.doc) : {};
       const body =
         config.mode === "demo"
-          ? { document: state.doc, formats, localImages: await localImagesForExport(state.doc) }
-          : { document: state.doc, formats };
+          ? { document: state.doc, formats, buttonPictures, localImages: await localImagesForExport(state.doc) }
+          : { document: state.doc, formats, buttonPictures };
       const res = await fetch("/api/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!res.ok) {
         const err = (await res.json().catch(() => ({}))) as { error?: string };
@@ -182,6 +186,13 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                 </li>
               ))}
             </ol>
+
+            {hasRoundedButtons && !mac && (
+              <p className="rounded-md border border-neutral-200 bg-neutral-50 p-3 text-xs text-neutral-700">
+                <span className="font-medium text-neutral-900">Rounded buttons are saved as pictures in the Windows file.</span> Outlook on Windows cannot round a button any other way. They look right, but to
+                change a button&apos;s wording, change it here and download again.
+              </p>
+            )}
 
             {issues.length > 0 && (
               <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
