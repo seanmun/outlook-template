@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { pageMetadata, SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo";
 import { SITE_URL } from "@/lib/site";
 import { AdSlot } from "@/components/ad-slot";
+import { AiDemo } from "@/components/ai-demo";
 import { AppHeader, DemoBanner } from "@/components/app-header";
 import { GridKeys } from "@/components/grid-keys";
 import { ExampleGallery } from "@/components/example-gallery";
@@ -45,6 +46,7 @@ export default function Home() {
       <AppHeader />
       <main className="mx-auto w-full max-w-4xl flex-1 space-y-8 p-6">
         <MarketingHero />
+        <AiDemo />
         <ExampleGallery />
         {/* Small screens have no margin for the rails, so one ad sits here instead. */}
         <AdSlot placement="inline" className="ad-inline mx-auto" />
