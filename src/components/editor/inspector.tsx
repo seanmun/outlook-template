@@ -15,18 +15,13 @@ import { AlignField, ColorField, FieldShell, ImageField, NumberField, PaddingFie
 import { RichTextField } from "./rich-text-field";
 
 function EmailOverview() {
-  const { state, dispatch, brand } = useEditor();
+  const { state, dispatch } = useEditor();
   const issues = useMemo(() => findContentIssues(state.doc), [state.doc]);
   return (
     <div className="space-y-4 p-4 text-sm">
       <div>
         <h2 className="font-semibold">Email</h2>
         <p className="text-xs text-neutral-500">Select a module in the preview or the Modules tab to edit it.</p>
-      </div>
-      <div className="rounded-md border p-3 text-xs text-neutral-600">
-        <div className="font-medium text-neutral-800">{brand.name}</div>
-        <div>{brand.description}</div>
-        <div className="mt-1">Fonts: {brand.fontFamily} (web-safe; no web fonts in email)</div>
       </div>
       <div>
         <h3 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">

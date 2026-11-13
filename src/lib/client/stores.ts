@@ -6,7 +6,9 @@
 import type { EmailDocument } from "@/lib/email/document";
 import type { ImageSource } from "@/lib/email/fields";
 import { collectImageSources } from "@/lib/email/render";
+import { validateDocument } from "@/lib/email/registry";
 import { sampleDataUrl } from "@/lib/email/samples";
+import { DEFAULT_TEMPLATE_IDS, MAX_TEMPLATES, visibleTemplates, type Template } from "@/lib/email/templates";
 
 export interface DraftSummary {
   id: string;
@@ -277,6 +279,83 @@ export async function localImagesForExport(doc: EmailDocument): Promise<Record<s
   return out;
 }
 
+/* ---------------- Templates ---------------- */
+
+export interface TemplateList {
+  /** The person's own templates first, then the starter templates they have kept. */
+  templates: Template[];
+  /** How many starter templates they have removed (so the app can offer to bring them back). */
+  removedStarters: number;
+}
+
+export interface TemplateStore {
+  list(): Promise<TemplateList>;
+  create(name: string, doc: EmailDocument): Promise<void>;
+  /** Deletes one of the person's templates, or removes a starter template for them. */
+  remove(id: string): Promise<void>;
+  restoreStarters(): Promise<void>;
+}
+
+type StoredTemplate = Omit<Template, "isDefault">;
+
+export const apiTemplateStore: TemplateStore = {
+  async list() {
+    const r = await api<{ templates: StoredTemplate[]; hiddenDefaults: string[] }>("/api/templates");
+    return { templates: visibleTemplates(r.templates, r.hiddenDefaults), removedStarters: r.hiddenDefaults.filter((id) => DEFAULT_TEMPLATE_IDS.includes(id)).length };
+  },
+  async create(name, document) {
+    await api("/api/templates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, document }) });
+  },
+  async remove(id) {
+    await api(`/api/templates/${encodeURIComponent(id)}`, { method: "DELETE" });
+  },
+  async restoreStarters() {
+    await api("/api/templates/hidden-defaults", { method: "DELETE" });
+  },
+};
+
+const TEMPLATES_KEY = "otb.templates.v1";
+const HIDDEN_TEMPLATES_KEY = "otb.templates.hidden.v1";
+
+function readJsonList<T>(key: string): T[] {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(key) ?? "[]");
+    return Array.isArray(v) ? (v as T[]) : [];
+  } catch {
+    return [];
+  }
+}
+function writeJsonList(key: string, list: unknown[]) {
+  try {
+    localStorage.setItem(key, JSON.stringify(list));
+  } catch {
+    throw new ApiError(507, "This browser's storage is full or unavailable, so it could not be saved.");
+  }
+}
+
+export const localTemplateStore: TemplateStore = {
+  async list() {
+    // Anything that is no longer a valid email (an old or damaged entry) is left out rather than shown broken.
+    const own = readJsonList<StoredTemplate>(TEMPLATES_KEY).filter((t) => t && typeof t.id === "string" && typeof t.name === "string" && validateDocument(t.document).ok);
+    const hidden = readJsonList<string>(HIDDEN_TEMPLATES_KEY).filter((id) => DEFAULT_TEMPLATE_IDS.includes(id));
+    return { templates: visibleTemplates(own, hidden), removedStarters: hidden.length };
+  },
+  async create(name, document) {
+    const own = readJsonList<StoredTemplate>(TEMPLATES_KEY);
+    if (own.length >= MAX_TEMPLATES) throw new ApiError(409, `You can keep ${MAX_TEMPLATES} templates of your own. Remove one first.`);
+    writeJsonList(TEMPLATES_KEY, [{ id: `local-${crypto.randomUUID()}`, name: name.trim().slice(0, 80) || "Untitled template", document: structuredClone(document), savedAt: new Date().toISOString() }, ...own]);
+  },
+  async remove(id) {
+    if (DEFAULT_TEMPLATE_IDS.includes(id)) writeJsonList(HIDDEN_TEMPLATES_KEY, [...new Set([...readJsonList<string>(HIDDEN_TEMPLATES_KEY), id])]);
+    else writeJsonList(TEMPLATES_KEY, readJsonList<StoredTemplate>(TEMPLATES_KEY).filter((t) => t.id !== id));
+  },
+  async restoreStarters() {
+    writeJsonList(HIDDEN_TEMPLATES_KEY, []);
+  },
+};
+
 export function storesFor(mode: "production" | "demo") {
-  return mode === "production" ? { drafts: apiDraftStore, assets: apiAssetClient } : { drafts: localDraftStore, assets: localAssetClient };
+  return mode === "production"
+    ? { drafts: apiDraftStore, assets: apiAssetClient, templates: apiTemplateStore }
+    : { drafts: localDraftStore, assets: localAssetClient, templates: localTemplateStore };
 }

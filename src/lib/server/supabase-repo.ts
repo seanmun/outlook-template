@@ -9,7 +9,7 @@ import "server-only";
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { EmailDocument, ModuleInstance } from "@/lib/email/document";
-import type { AssetRecord, AssetRepo, EmailRecord, EmailRepo, NewAsset, SavedModuleRecord, SavedModuleRepo } from "./repo";
+import type { AssetRecord, AssetRepo, EmailRecord, EmailRepo, NewAsset, SavedModuleRecord, SavedModuleRepo, TemplateRecord, TemplateRepo } from "./repo";
 
 export const ASSET_BUCKET = "email-assets";
 
@@ -218,5 +218,52 @@ export class SupabaseSavedModuleRepo implements SavedModuleRepo {
     const { data, error } = await this.db.from("saved_modules").delete().eq("id", id).eq("owner_id", ownerId).select("id");
     if (error) fail("delete saved module", error);
     return (data ?? []).length > 0;
+  }
+}
+
+interface TemplateRow {
+  id: string;
+  owner_id: string;
+  name: string;
+  document: EmailDocument;
+  created_at: string;
+}
+const toTemplate = (r: TemplateRow): TemplateRecord => ({ id: r.id, ownerId: r.owner_id, name: r.name, document: r.document, createdAt: r.created_at });
+
+export class SupabaseTemplateRepo implements TemplateRepo {
+  constructor(private db: SupabaseClient) {}
+
+  async list(ownerId: string) {
+    const { data, error } = await this.db.from("templates").select("*").eq("owner_id", ownerId).order("created_at", { ascending: false }).limit(200);
+    if (error) fail("list templates", error);
+    return (data ?? []).map((r) => toTemplate(r as TemplateRow));
+  }
+
+  async create(ownerId: string, name: string, doc: EmailDocument) {
+    const { data, error } = await this.db.from("templates").insert({ owner_id: ownerId, name, document: doc }).select("*").single();
+    if (error) fail("save template", error);
+    return toTemplate(data as TemplateRow);
+  }
+
+  async remove(ownerId: string, id: string) {
+    const { data, error } = await this.db.from("templates").delete().eq("id", id).eq("owner_id", ownerId).select("id");
+    if (error) fail("delete template", error);
+    return (data ?? []).length > 0;
+  }
+
+  async hiddenDefaults(ownerId: string) {
+    const { data, error } = await this.db.from("hidden_default_templates").select("default_id").eq("owner_id", ownerId);
+    if (error) fail("list hidden templates", error);
+    return (data ?? []).map((r: { default_id: string }) => r.default_id);
+  }
+
+  async hideDefault(ownerId: string, defaultId: string) {
+    const { error } = await this.db.from("hidden_default_templates").upsert({ owner_id: ownerId, default_id: defaultId }, { onConflict: "owner_id,default_id", ignoreDuplicates: true });
+    if (error) fail("hide template", error);
+  }
+
+  async restoreDefaults(ownerId: string) {
+    const { error } = await this.db.from("hidden_default_templates").delete().eq("owner_id", ownerId);
+    if (error) fail("restore templates", error);
   }
 }

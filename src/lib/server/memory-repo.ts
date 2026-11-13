@@ -1,6 +1,6 @@
 /** In-memory repositories with the same ownership semantics as the Supabase RLS policies. Used by tests. */
 import type { EmailDocument } from "@/lib/email/document";
-import type { AssetRecord, AssetRepo, EmailRecord, EmailRepo, NewAsset, SavedModuleRecord, SavedModuleRepo } from "./repo";
+import type { AssetRecord, AssetRepo, EmailRecord, EmailRepo, NewAsset, SavedModuleRecord, SavedModuleRepo, TemplateRecord, TemplateRepo } from "./repo";
 
 export class MemoryEmailRepo implements EmailRepo {
   rows = new Map<string, EmailRecord>();
@@ -72,5 +72,32 @@ export class MemorySavedModuleRepo implements SavedModuleRepo {
     const r = this.rows.get(id);
     if (!r || r.ownerId !== ownerId) return false;
     return this.rows.delete(id);
+  }
+}
+
+export class MemoryTemplateRepo implements TemplateRepo {
+  rows = new Map<string, TemplateRecord>();
+  hidden = new Map<string, Set<string>>();
+  async list(ownerId: string) {
+    return [...this.rows.values()].filter((r) => r.ownerId === ownerId).reverse();
+  }
+  async create(ownerId: string, name: string, doc: EmailDocument) {
+    const rec: TemplateRecord = { id: crypto.randomUUID(), ownerId, name, document: structuredClone(doc), createdAt: new Date().toISOString() };
+    this.rows.set(rec.id, rec);
+    return structuredClone(rec);
+  }
+  async remove(ownerId: string, id: string) {
+    const r = this.rows.get(id);
+    if (!r || r.ownerId !== ownerId) return false;
+    return this.rows.delete(id);
+  }
+  async hiddenDefaults(ownerId: string) {
+    return [...(this.hidden.get(ownerId) ?? [])];
+  }
+  async hideDefault(ownerId: string, defaultId: string) {
+    this.hidden.set(ownerId, (this.hidden.get(ownerId) ?? new Set()).add(defaultId));
+  }
+  async restoreDefaults(ownerId: string) {
+    this.hidden.delete(ownerId);
   }
 }

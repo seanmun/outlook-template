@@ -12,13 +12,15 @@ import { buildExportPackage, MissingImageError, type ImageLoader } from "@/lib/e
 import { ExportFailedError, ExporterUnavailableError, type ExporterId } from "@/lib/export/types";
 import { CfbTooLargeError } from "@/lib/export/cfb-writer";
 import { MAX_UPLOAD_BYTES, readImageInfo } from "./image-info";
-import { UUID_RE, type AssetRepo, type EmailRepo, type SavedModuleRepo } from "./repo";
+import { UUID_RE, type AssetRepo, type EmailRepo, type SavedModuleRepo, type TemplateRepo } from "./repo";
+import { DEFAULT_TEMPLATE_IDS, MAX_TEMPLATES } from "@/lib/email/templates";
 
 export interface HandlerContext {
   userId: string | null;
   emails: EmailRepo;
   assets: AssetRepo;
   savedModules: SavedModuleRepo;
+  templates: TemplateRepo;
 }
 
 export function json(data: unknown, status = 200): Response {
@@ -124,6 +126,46 @@ export async function deleteSavedModule(ctx: HandlerContext, id: string) {
   if (!ctx.userId) return unauthorized();
   if (!UUID_RE.test(id)) return notFound();
   return (await ctx.savedModules.remove(ctx.userId, id)) ? json({ ok: true }) : notFound();
+}
+
+/* ---------------- Templates ---------------- */
+
+const TemplateBody = z.object({ name: z.string().trim().min(1).max(80), document: z.unknown() });
+
+const templateJson = (r: { id: string; name: string; document: EmailDocument; createdAt: string }) => ({ id: r.id, name: r.name, document: r.document, savedAt: r.createdAt });
+
+/** The user's own templates, plus which of the starter templates they have removed. */
+export async function listTemplates(ctx: HandlerContext) {
+  if (!ctx.userId) return unauthorized();
+  const [own, hidden] = await Promise.all([ctx.templates.list(ctx.userId), ctx.templates.hiddenDefaults(ctx.userId)]);
+  return json({ templates: own.map(templateJson), hiddenDefaults: hidden });
+}
+
+export async function createTemplate(ctx: HandlerContext, body: unknown) {
+  if (!ctx.userId) return unauthorized();
+  const parsed = TemplateBody.safeParse(body);
+  if (!parsed.success) return errorResponse(400, "A template needs a name and an email.");
+  const v = await validateOwnedDocument({ ...ctx, userId: ctx.userId }, parsed.data.document);
+  if (v.error) return v.error;
+  if ((await ctx.templates.list(ctx.userId)).length >= MAX_TEMPLATES) return errorResponse(409, `You can keep ${MAX_TEMPLATES} templates of your own. Remove one first.`);
+  return json({ template: templateJson(await ctx.templates.create(ctx.userId, parsed.data.name, v.doc)) }, 201);
+}
+
+/** Deletes one of the user's templates, or hides a starter template for them. */
+export async function deleteTemplate(ctx: HandlerContext, id: string) {
+  if (!ctx.userId) return unauthorized();
+  if (DEFAULT_TEMPLATE_IDS.includes(id)) {
+    await ctx.templates.hideDefault(ctx.userId, id);
+    return json({ ok: true });
+  }
+  if (!UUID_RE.test(id)) return notFound();
+  return (await ctx.templates.remove(ctx.userId, id)) ? json({ ok: true }) : notFound();
+}
+
+export async function restoreDefaultTemplates(ctx: HandlerContext) {
+  if (!ctx.userId) return unauthorized();
+  await ctx.templates.restoreDefaults(ctx.userId);
+  return json({ ok: true });
 }
 
 /* ---------------- Assets ---------------- */

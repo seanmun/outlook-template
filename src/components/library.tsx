@@ -13,14 +13,16 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Thumbnail } from "@/components/editor/saved-modules";
 import { useConfig } from "@/lib/client/config";
 import { useSavedModules, type SavedModule } from "@/lib/client/saved-modules";
-import { storesFor, type AssetClient, type DraftSummary, type LibraryImage } from "@/lib/client/stores";
+import { storesFor, type AssetClient, type DraftSummary, type LibraryImage, type TemplateList } from "@/lib/client/stores";
 import { getBrand } from "@/lib/email/brands";
-import { COLUMNS_TYPE } from "@/lib/email/document";
+import { COLUMNS_TYPE, type EmailDocument } from "@/lib/email/document";
+import { defaultTemplates, emailFromTemplate, type Template } from "@/lib/email/templates";
 import { getModule } from "@/lib/email/registry";
 import { collectImageSources, renderEmailHtml } from "@/lib/email/render";
 
 export const LIBRARY_SECTIONS = {
   emails: { title: "Emails", blurb: "Every email saves itself as you work." },
+  templates: { title: "Templates", blurb: "Start a new email from one of these. Save your own from the editor with \u201cSave as template\u201d." },
   blocks: { title: "Saved blocks", blurb: "Blocks and rows you saved for reuse. Add them to any email from the Saved list in the editor." },
   images: { title: "Images", blurb: "Every picture you have uploaded. Use one in the editor with “Choose from your library”." },
 } as const;
@@ -70,11 +72,12 @@ const EMAIL_WIDTH = 680;
 
 /**
  * A small picture of an email: the same HTML the editor shows, scaled to the card and cropped to its top.
- * The email is only fetched and drawn once its card is on screen, so a long library stays quick.
+ * The email is only loaded and drawn once its card is on screen, so a long library stays quick.
+ * `load` must be stable (wrap it in useCallback), since a new function means "load again".
  */
-function EmailThumb({ id }: { id: string }) {
+export function EmailThumb({ load }: { load: () => Promise<EmailDocument | null> }) {
   const { config } = useWhere();
-  const { drafts, assets } = useMemo(() => storesFor(config.mode), [config.mode]);
+  const { assets } = useMemo(() => storesFor(config.mode), [config.mode]);
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [html, setHtml] = useState<string | null | "none">(null);
@@ -89,12 +92,11 @@ function EmailThumb({ id }: { id: string }) {
       (entries) => {
         if (!entries.some((e) => e.isIntersecting)) return;
         seen.disconnect();
-        drafts
-          .get(id)
-          .then(async (d) => {
-            if (!d) throw new Error("gone");
-            await assets.preload(collectImageSources(d.document));
-            return renderEmailHtml(d.document, { resolveImage: (s) => assets.previewUrl(s) });
+        load()
+          .then(async (doc) => {
+            if (!doc) throw new Error("gone");
+            await assets.preload(collectImageSources(doc));
+            return renderEmailHtml(doc, { resolveImage: (s) => assets.previewUrl(s) });
           })
           .then((h) => !stale && setHtml(h))
           .catch(() => !stale && setHtml("none"));
@@ -107,7 +109,7 @@ function EmailThumb({ id }: { id: string }) {
       sized.disconnect();
       seen.disconnect();
     };
-  }, [id, drafts, assets]);
+  }, [load, assets]);
 
   const scale = width / EMAIL_WIDTH;
   return (
@@ -127,6 +129,14 @@ function EmailThumb({ id }: { id: string }) {
       {html === "none" && <span className="absolute inset-0 flex items-center justify-center text-xs text-neutral-400">No preview</span>}
     </div>
   );
+}
+
+/** The preview for a saved email, fetched by id. */
+function SavedEmailThumb({ id }: { id: string }) {
+  const { config } = useWhere();
+  const { drafts } = useMemo(() => storesFor(config.mode), [config.mode]);
+  const load = useCallback(() => drafts.get(id).then((d) => d?.document ?? null), [drafts, id]);
+  return <EmailThumb load={load} />;
 }
 
 export function EmailsCard({ preview = false }: { preview?: boolean }) {
@@ -184,7 +194,7 @@ export function EmailsCard({ preview = false }: { preview?: boolean }) {
                 className="block w-full overflow-hidden rounded-md border text-left transition hover:border-neutral-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
                 onClick={() => router.push(`/editor/${d.id}`)}
               >
-                <EmailThumb id={d.id} />
+                <SavedEmailThumb id={d.id} />
                 <span className="block border-t p-2.5">
                   <span className="block truncate text-sm font-medium">{d.title || "Untitled email"}</span>
                   <span className="block truncate text-xs text-neutral-500">{d.subject || "No subject"}</span>
@@ -207,6 +217,134 @@ export function EmailsCard({ preview = false }: { preview?: boolean }) {
             </li>
           ))}
         </ul>
+      )}
+    </Card>
+  );
+}
+
+/* ---------------- Templates ---------------- */
+
+/** Loads the person's templates. If that fails (offline, or the account store is unreachable), the starter templates still show. */
+export function useTemplates() {
+  const { config } = useWhere();
+  const { templates: store, drafts } = useMemo(() => storesFor(config.mode), [config.mode]);
+  const router = useRouter();
+  const [list, setList] = useState<TemplateList | null>(null);
+  const [starting, setStarting] = useState<string | null>(null);
+
+  const reload = useCallback(
+    () =>
+      store
+        .list()
+        .then(setList)
+        .catch(() => setList({ templates: defaultTemplates(), removedStarters: 0 })),
+    [store],
+  );
+  useEffect(() => {
+    let stale = false;
+    store
+      .list()
+      .then((l) => !stale && setList(l))
+      .catch(() => !stale && setList({ templates: defaultTemplates(), removedStarters: 0 }));
+    return () => {
+      stale = true;
+    };
+  }, [store]);
+
+  /** Makes a new email from the template (or a blank one) and opens it. */
+  const start = useCallback(
+    async (key: string, doc: EmailDocument, query = "") => {
+      if (starting) return;
+      setStarting(key);
+      try {
+        const d = await drafts.create(doc);
+        router.push(`/editor/${d.id}${query}`);
+      } catch (e) {
+        toast.error((e as Error).message);
+        setStarting(null);
+      }
+    },
+    [drafts, router, starting],
+  );
+
+  const remove = useCallback(
+    async (t: Template) => {
+      const ask = t.isDefault ? `Remove the starter template "${t.name}"? You can bring starter templates back later.` : `Delete the template "${t.name}"? Emails already made from it are not affected.`;
+      if (!confirm(ask)) return;
+      try {
+        await store.remove(t.id);
+        await reload();
+      } catch (e) {
+        toast.error((e as Error).message);
+      }
+    },
+    [store, reload],
+  );
+
+  const restoreStarters = useCallback(async () => {
+    try {
+      await store.restoreStarters();
+      await reload();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }, [store, reload]);
+
+  return { list, starting, start, remove, restoreStarters };
+}
+
+/** One template: its preview and name. Clicking it starts a new email from it. */
+export function TemplateTile({ template, busy, onStart, onRemove }: { template: Template; busy: boolean; onStart: () => void; onRemove?: () => void }) {
+  const load = useCallback(() => Promise.resolve(template.document), [template.document]);
+  return (
+    <li className="group relative">
+      <button
+        disabled={busy}
+        onClick={onStart}
+        title={`Start a new email from "${template.name}"`}
+        className="block w-full overflow-hidden rounded-md border text-left transition hover:border-neutral-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 disabled:opacity-60"
+      >
+        <EmailThumb load={load} />
+        <span className="block border-t p-2.5">
+          <span className="block truncate text-sm font-medium">{template.name}</span>
+          <span className="block truncate text-xs text-neutral-500">{template.isDefault ? "Starter template" : `Saved ${new Date(template.savedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`}</span>
+        </span>
+      </button>
+      {onRemove && (
+        <Button
+          variant="outline"
+          size="icon"
+          className="absolute top-2 right-2 bg-white opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+          aria-label={`Remove template ${template.name}`}
+          onClick={onRemove}
+        >
+          <Trash2 />
+        </Button>
+      )}
+    </li>
+  );
+}
+
+export function TemplatesCard({ preview = false }: { preview?: boolean }) {
+  const { list, starting, start, remove, restoreStarters } = useTemplates();
+  const shown = preview ? list?.templates.slice(0, 4) : list?.templates;
+  return (
+    <Card section="templates" count={list?.templates.length ?? null} preview={preview}>
+      {!shown ? (
+        <Empty>Loading…</Empty>
+      ) : shown.length === 0 ? (
+        <Empty>No templates. Open an email and choose &ldquo;Save as template&rdquo; to make one.</Empty>
+      ) : (
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {shown.map((t) => (
+            <TemplateTile key={t.id} template={t} busy={!!starting} onStart={() => start(t.id, emailFromTemplate(t))} onRemove={preview ? undefined : () => remove(t)} />
+          ))}
+        </ul>
+      )}
+      {!preview && list && list.removedStarters > 0 && (
+        <button type="button" className="mt-3 text-sm text-neutral-600 underline underline-offset-2 hover:text-neutral-900" onClick={restoreStarters}>
+          Bring back the starter templates ({list.removedStarters} removed)
+        </button>
       )}
     </Card>
   );
@@ -392,9 +530,10 @@ export function LibraryOverview() {
     <>
       <header>
         <h1 className="text-2xl font-semibold">Library</h1>
-        <p className="mt-1 text-sm text-neutral-500">Your emails, saved blocks and images in one place.</p>
+        <p className="mt-1 text-sm text-neutral-500">Your emails, templates, saved blocks and images in one place.</p>
       </header>
       <EmailsCard preview />
+      <TemplatesCard preview />
       <BlocksCard preview />
       <ImagesCard preview />
     </>
@@ -407,7 +546,7 @@ export function LibrarySectionView({ section }: { section: LibrarySection }) {
       <Link href="/library" className="inline-flex items-center gap-1.5 text-sm font-medium text-neutral-700 hover:text-neutral-900">
         <ArrowLeft className="size-4" /> Library
       </Link>
-      {section === "emails" ? <EmailsCard /> : section === "blocks" ? <BlocksCard /> : <ImagesCard />}
+      {section === "emails" ? <EmailsCard /> : section === "templates" ? <TemplatesCard /> : section === "blocks" ? <BlocksCard /> : <ImagesCard />}
     </>
   );
 }

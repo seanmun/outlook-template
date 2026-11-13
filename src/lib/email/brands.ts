@@ -144,7 +144,45 @@ export const BRANDS: Brand[] = [
     modules: STANDARD_MODULES,
     voice: "Measured, formal, factual. Prefers clear headings and brief bodies.",
   },
+  {
+    // Not a company: the neutral look a blank email starts with, so it never opens carrying someone else's name.
+    id: "plain",
+    name: "Plain",
+    description: "A neutral black, white and grey starting point.",
+    isSample: false,
+    fontFamily: "Arial, Helvetica, sans-serif",
+    headingFontFamily: "Arial, Helvetica, sans-serif",
+    colors: {
+      pageBackground: "#f4f4f5",
+      contentBackground: "#ffffff",
+      heading: "#171717",
+      text: "#404040",
+      mutedText: "#737373",
+      primary: "#171717",
+      primaryText: "#ffffff",
+      link: "#1d4ed8",
+      footerBackground: "#f4f4f5",
+      footerText: "#525252",
+    },
+    palette: [
+      { label: "Black", value: "#171717" },
+      { label: "Charcoal", value: "#404040" },
+      { label: "Grey", value: "#737373" },
+      { label: "Light grey", value: "#f4f4f5" },
+      { label: "White", value: "#ffffff" },
+      { label: "Blue", value: "#1d4ed8" },
+      { label: "Red", value: "#e7000b" },
+    ],
+    wordmark: "Your company",
+    headlineSizes: [22, 26, 30],
+    buttonRadius: 0,
+    modules: STANDARD_MODULES,
+    voice: "Clear, friendly and brief.",
+  },
 ];
+
+/** The look a blank email starts with. */
+export const DEFAULT_BRAND_ID = "plain";
 
 export function getBrand(id: string): Brand | undefined {
   return BRANDS.find((b) => b.id === id);

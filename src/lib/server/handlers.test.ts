@@ -4,14 +4,19 @@ import { sampleEmailDocument } from "@/lib/email/starter";
 import { sampleBytes } from "@/lib/email/samples";
 import type { EmailDocument } from "@/lib/email/document";
 import { createSavedModule, deleteSavedModule, listSavedModules, MAX_SAVED_MODULES } from "./handlers";
+import { createTemplate, deleteTemplate, listTemplates, restoreDefaultTemplates } from "./handlers";
+import { DEFAULT_TEMPLATE_IDS, MAX_TEMPLATES, defaultTemplates, emailFromTemplate, visibleTemplates } from "@/lib/email/templates";
+import { validateDocument } from "@/lib/email/registry";
+import { newEmailDocument } from "@/lib/email/starter";
 import { createEmail, deleteEmail, exportForDemo, exportForUser, getEmail, listAssets, listEmails, readAsset, updateEmail, uploadAsset, type HandlerContext } from "./handlers";
-import { MemoryAssetRepo, MemoryEmailRepo, MemorySavedModuleRepo } from "./memory-repo";
+import { MemoryAssetRepo, MemoryEmailRepo, MemorySavedModuleRepo, MemoryTemplateRepo } from "./memory-repo";
 
 function setup() {
   const emails = new MemoryEmailRepo();
   const assets = new MemoryAssetRepo();
   const savedModules = new MemorySavedModuleRepo();
-  const as = (userId: string | null): HandlerContext => ({ userId, emails, assets, savedModules });
+  const templates = new MemoryTemplateRepo();
+  const as = (userId: string | null): HandlerContext => ({ userId, emails, assets, savedModules, templates });
   return { emails, assets, as };
 }
 
@@ -194,5 +199,82 @@ describe("saved modules", () => {
     const { as } = setup();
     for (let i = 0; i < MAX_SAVED_MODULES; i++) expect((await createSavedModule(as("alice"), body())).status).toBe(201);
     expect((await createSavedModule(as("alice"), body())).status).toBe(409);
+  });
+});
+
+describe("templates", () => {
+  type Listed = { templates: { id: string; name: string; savedAt: string; document: EmailDocument }[]; hiddenDefaults: string[] };
+  const listFor = async (ctx: HandlerContext) => (await (await listTemplates(ctx)).json()) as Listed;
+  const body = (name = "Monthly update") => ({ name, document: sampleEmailDocument("harbor-pine") });
+
+  it("needs a signed-in user", async () => {
+    const { as } = setup();
+    expect((await listTemplates(as(null))).status).toBe(401);
+    expect((await createTemplate(as(null), body())).status).toBe(401);
+    expect((await deleteTemplate(as(null), DEFAULT_TEMPLATE_IDS[0])).status).toBe(401);
+    expect((await restoreDefaultTemplates(as(null))).status).toBe(401);
+  });
+
+  it("saves, lists and deletes for the owner only", async () => {
+    const { as } = setup();
+    const res = await createTemplate(as("alice"), body());
+    expect(res.status).toBe(201);
+    const { template } = (await res.json()) as { template: { id: string } };
+    const mine = await listFor(as("alice"));
+    expect(mine.templates).toHaveLength(1);
+    expect(mine.templates[0]).toMatchObject({ id: template.id, name: "Monthly update" });
+    expect(mine.templates[0].document.modules.length).toBeGreaterThan(0);
+    expect((await listFor(as("bob"))).templates).toHaveLength(0);
+    expect((await deleteTemplate(as("bob"), template.id)).status).toBe(404);
+    expect((await deleteTemplate(as("alice"), template.id)).status).toBe(200);
+    expect((await listFor(as("alice"))).templates).toHaveLength(0);
+  });
+
+  it("rejects a missing name, a broken email and images that are not the user's", async () => {
+    const { as } = setup();
+    expect((await createTemplate(as("alice"), { name: " ", document: sampleEmailDocument("harbor-pine") })).status).toBe(400);
+    expect((await createTemplate(as("alice"), { name: "x", document: { nope: true } })).status).toBe(400);
+    const bobsImage = await uploadFor(as("bob"));
+    expect((await createTemplate(as("alice"), { name: "x", document: withAsset(sampleEmailDocument("harbor-pine"), bobsImage) })).status).toBe(400);
+    expect((await createTemplate(as("bob"), { name: "x", document: withAsset(sampleEmailDocument("harbor-pine"), bobsImage) })).status).toBe(201);
+  });
+
+  it("removes a starter template for one user only, and can bring them back", async () => {
+    const { as } = setup();
+    const first = DEFAULT_TEMPLATE_IDS[0];
+    expect((await deleteTemplate(as("alice"), first)).status).toBe(200);
+    expect((await deleteTemplate(as("alice"), first)).status).toBe(200);
+    expect((await listFor(as("alice"))).hiddenDefaults).toEqual([first]);
+    expect((await listFor(as("bob"))).hiddenDefaults).toEqual([]);
+    expect((await restoreDefaultTemplates(as("alice"))).status).toBe(200);
+    expect((await listFor(as("alice"))).hiddenDefaults).toEqual([]);
+    expect((await deleteTemplate(as("alice"), "default-nope")).status).toBe(404);
+  });
+
+  it("stops at the limit", async () => {
+    const { as } = setup();
+    for (let i = 0; i < MAX_TEMPLATES; i++) expect((await createTemplate(as("alice"), body(`T${i}`))).status).toBe(201);
+    expect((await createTemplate(as("alice"), body("one too many"))).status).toBe(409);
+  });
+
+  it("starter templates are valid emails, and a blank email in the plain look is too", () => {
+    for (const t of defaultTemplates()) expect(validateDocument(t.document).ok).toBe(true);
+    expect(validateDocument(newEmailDocument("plain")).ok).toBe(true);
+  });
+
+  it("shows a person their own templates first, then the starter templates they kept", () => {
+    const own = [{ id: "a", name: "Mine", document: sampleEmailDocument("harbor-pine"), savedAt: "2026-11-12T00:00:00Z" }];
+    const shown = visibleTemplates(own, [DEFAULT_TEMPLATE_IDS[1]]);
+    expect(shown.map((t) => t.id)).toEqual(["a", DEFAULT_TEMPLATE_IDS[0], DEFAULT_TEMPLATE_IDS[2]]);
+    expect(shown.map((t) => t.isDefault)).toEqual([false, true, true]);
+  });
+
+  it("starts an email from a template without touching the template", () => {
+    const template = { name: "Monthly update", document: sampleEmailDocument("harbor-pine") };
+    const before = JSON.stringify(template.document);
+    const email = emailFromTemplate(template);
+    expect(email.title).toBe("Monthly update");
+    email.modules.pop();
+    expect(JSON.stringify(template.document)).toBe(before);
   });
 });

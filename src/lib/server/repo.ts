@@ -71,4 +71,23 @@ export interface SavedModuleRepo {
   remove(ownerId: string, id: string): Promise<boolean>;
 }
 
+export interface TemplateRecord {
+  id: string;
+  ownerId: string;
+  name: string;
+  document: EmailDocument;
+  createdAt: string;
+}
+
+export interface TemplateRepo {
+  /** The owner's own templates, newest first. */
+  list(ownerId: string): Promise<TemplateRecord[]>;
+  create(ownerId: string, name: string, doc: EmailDocument): Promise<TemplateRecord>;
+  remove(ownerId: string, id: string): Promise<boolean>;
+  /** Ids of the starter templates this owner has removed. */
+  hiddenDefaults(ownerId: string): Promise<string[]>;
+  hideDefault(ownerId: string, defaultId: string): Promise<void>;
+  restoreDefaults(ownerId: string): Promise<void>;
+}
+
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
