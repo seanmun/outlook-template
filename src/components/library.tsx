@@ -17,7 +17,7 @@ import { storesFor, type AssetClient, type DraftSummary, type LibraryImage } fro
 import { getBrand } from "@/lib/email/brands";
 import { COLUMNS_TYPE } from "@/lib/email/document";
 import { getModule } from "@/lib/email/registry";
-import { renderEmailHtml } from "@/lib/email/render";
+import { collectImageSources, renderEmailHtml } from "@/lib/email/render";
 
 export const LIBRARY_SECTIONS = {
   emails: { title: "Emails", blurb: "Every email saves itself as you work." },
@@ -65,6 +65,69 @@ function Card(props: { section: LibrarySection; count: number | null; preview: b
 const Empty = ({ children }: { children: React.ReactNode }) => <p className="text-sm text-neutral-500">{children}</p>;
 
 /* ---------------- Emails ---------------- */
+
+const EMAIL_WIDTH = 680;
+
+/**
+ * A small picture of an email: the same HTML the editor shows, scaled to the card and cropped to its top.
+ * The email is only fetched and drawn once its card is on screen, so a long library stays quick.
+ */
+function EmailThumb({ id }: { id: string }) {
+  const { config } = useWhere();
+  const { drafts, assets } = useMemo(() => storesFor(config.mode), [config.mode]);
+  const box = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+  const [html, setHtml] = useState<string | null | "none">(null);
+
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    let stale = false;
+    const sized = new ResizeObserver(() => setWidth(el.clientWidth));
+    sized.observe(el);
+    const seen = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return;
+        seen.disconnect();
+        drafts
+          .get(id)
+          .then(async (d) => {
+            if (!d) throw new Error("gone");
+            await assets.preload(collectImageSources(d.document));
+            return renderEmailHtml(d.document, { resolveImage: (s) => assets.previewUrl(s) });
+          })
+          .then((h) => !stale && setHtml(h))
+          .catch(() => !stale && setHtml("none"));
+      },
+      { rootMargin: "200px" },
+    );
+    seen.observe(el);
+    return () => {
+      stale = true;
+      sized.disconnect();
+      seen.disconnect();
+    };
+  }, [id, drafts, assets]);
+
+  const scale = width / EMAIL_WIDTH;
+  return (
+    <div ref={box} className="relative aspect-[4/5] overflow-hidden bg-neutral-100" aria-hidden>
+      {html && html !== "none" && width > 0 && (
+        // No scripts can run in the frame. "allow-same-origin" only lets the account's own pictures load.
+        <iframe
+          srcDoc={html}
+          title=""
+          tabIndex={-1}
+          sandbox="allow-same-origin"
+          scrolling="no"
+          className="pointer-events-none absolute top-0 left-0 origin-top-left border-0"
+          style={{ width: EMAIL_WIDTH, height: (width * 1.25) / scale, transform: `scale(${scale})` }}
+        />
+      )}
+      {html === "none" && <span className="absolute inset-0 flex items-center justify-center text-xs text-neutral-400">No preview</span>}
+    </div>
+  );
+}
 
 export function EmailsCard({ preview = false }: { preview?: boolean }) {
   const { config } = useWhere();
@@ -114,17 +177,30 @@ export function EmailsCard({ preview = false }: { preview?: boolean }) {
       ) : shown.length === 0 ? (
         <Empty>No emails yet. Start one with &ldquo;New email&rdquo;.</Empty>
       ) : (
-        <ul className="divide-y rounded-md border">
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {shown.map((d) => (
-            <li key={d.id} className="flex items-center gap-3 px-4 py-3">
-              <button className="min-w-0 flex-1 text-left" onClick={() => router.push(`/editor/${d.id}`)}>
-                <div className="truncate text-sm font-medium">{d.title || "Untitled email"}</div>
-                <div className="truncate text-xs text-neutral-500">
-                  {getBrand(d.brandId)?.name ?? d.brandId} · {d.subject || "No subject"} · {new Date(d.updatedAt).toLocaleString()}
-                </div>
+            <li key={d.id} className="group relative">
+              <button
+                className="block w-full overflow-hidden rounded-md border text-left transition hover:border-neutral-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
+                onClick={() => router.push(`/editor/${d.id}`)}
+              >
+                <EmailThumb id={d.id} />
+                <span className="block border-t p-2.5">
+                  <span className="block truncate text-sm font-medium">{d.title || "Untitled email"}</span>
+                  <span className="block truncate text-xs text-neutral-500">{d.subject || "No subject"}</span>
+                  <span className="block truncate text-[11px] text-neutral-400">
+                    {new Date(d.updatedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })} · {getBrand(d.brandId)?.name ?? d.brandId}
+                  </span>
+                </span>
               </button>
               {!preview && (
-                <Button variant="ghost" size="icon" aria-label={`Delete email ${d.title || "Untitled email"}`} onClick={() => remove(d)}>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="absolute top-2 right-2 bg-white opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+                  aria-label={`Delete email ${d.title || "Untitled email"}`}
+                  onClick={() => remove(d)}
+                >
                   <Trash2 />
                 </Button>
               )}
