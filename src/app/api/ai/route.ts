@@ -5,7 +5,7 @@ import type { OfferedImage } from "@/lib/ai/run";
 import { validateDocument } from "@/lib/email/registry";
 import { aiAvailability, appMode } from "@/lib/server/config";
 import { productionContext, readJson } from "@/lib/server/context";
-import { errorResponse, json, type HandlerContext } from "@/lib/server/handlers";
+import { errorResponse, json, takeAiRequest, type HandlerContext } from "@/lib/server/handlers";
 import { UUID_RE } from "@/lib/server/repo";
 
 export const maxDuration = 120;
@@ -86,6 +86,11 @@ export async function POST(req: Request) {
   if (ref && !ref.ok) return errorResponse(415, ref.error);
   const images = await offeredImages(ctx, parsed.data.images);
   if (images instanceof Response) return images;
+  // Last thing before the model is called, so a request that was never going to run does not use up the day's allowance.
+  if (ctx) {
+    const refused = await takeAiRequest(ctx);
+    if (refused) return refused;
+  }
 
   const result = await assembleWithAi({
     doc: doc.doc,

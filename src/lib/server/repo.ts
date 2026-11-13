@@ -105,6 +105,12 @@ export interface TemplateRepo {
   restoreDefaults(scope: Scope): Promise<void>;
 }
 
+/** Counts each person's AI requests for the day, so there is a ceiling on what the AI can cost. */
+export interface AiUsageRepo {
+  /** Uses up one request for this person. Returns how many are left today, or -1 if they had none left. */
+  take(userId: string, dailyLimit: number): Promise<number>;
+}
+
 /** Who has a team email open right now, so a second person can be told before they both edit it. */
 export interface PresenceRepo {
   /** Records that this person has the email open, and returns the names of teammates who also do. */

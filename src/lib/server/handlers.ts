@@ -12,8 +12,8 @@ import { buildExportPackage, MissingImageError, type ImageLoader } from "@/lib/e
 import { ExportFailedError, ExporterUnavailableError, type ExporterId } from "@/lib/export/types";
 import { CfbTooLargeError } from "@/lib/export/cfb-writer";
 import { MAX_UPLOAD_BYTES, readImageInfo } from "./image-info";
-import { UUID_RE, type AssetRepo, type EmailRepo, type PresenceRepo, type SavedModuleRepo, type Scope, type TemplateRepo } from "./repo";
-import { formatMb, limitsFor } from "@/lib/limits";
+import { UUID_RE, type AiUsageRepo, type AssetRepo, type EmailRepo, type PresenceRepo, type SavedModuleRepo, type Scope, type TemplateRepo } from "./repo";
+import { AI_DAILY_LIMIT, formatMb, limitsFor } from "@/lib/limits";
 import { DEFAULT_TEMPLATE_IDS } from "@/lib/email/templates";
 
 export interface HandlerContext {
@@ -25,6 +25,7 @@ export interface HandlerContext {
   savedModules: SavedModuleRepo;
   templates: TemplateRepo;
   presence: PresenceRepo;
+  aiUsage: AiUsageRepo;
 }
 
 export function json(data: unknown, status = 200): Response {
@@ -103,6 +104,27 @@ export async function deleteEmail(ctx: HandlerContext, id: string) {
   if (!ctx.userId) return unauthorized();
   if (!UUID_RE.test(id)) return notFound();
   return (await ctx.emails.remove(scopeOf({ ...ctx, userId: ctx.userId }), id)) ? json({ ok: true }) : notFound();
+}
+
+/* ---------------- AI requests per day ---------------- */
+
+/**
+ * Call before every AI request. Uses up one of the person's requests for today and answers with
+ * null to go ahead, or the response to send back instead. If the count cannot be kept (the
+ * database is unreachable or not set up), the request is refused: an AI that cannot be counted
+ * must not run.
+ */
+export async function takeAiRequest(ctx: HandlerContext): Promise<Response | null> {
+  if (!ctx.userId) return unauthorized();
+  let left: number;
+  try {
+    left = await ctx.aiUsage.take(ctx.userId, AI_DAILY_LIMIT);
+  } catch (e) {
+    console.error("AI usage could not be counted", e);
+    return errorResponse(503, "AI is not available right now. Everything else works as normal.");
+  }
+  if (left < 0) return errorResponse(429, `You have used today\u2019s ${AI_DAILY_LIMIT} AI requests. You get more tomorrow, and everything else still works.`);
+  return null;
 }
 
 /* ---------------- Who else has a team email open ---------------- */

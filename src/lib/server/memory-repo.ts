@@ -1,6 +1,6 @@
 /** In-memory repositories with the same ownership semantics as the Supabase RLS policies. Used by tests. */
 import type { EmailDocument } from "@/lib/email/document";
-import { PRESENCE_WINDOW_MS, type AssetRecord, type AssetRepo, type EmailRecord, type EmailRepo, type NewAsset, type PresenceRepo, type Scope, type SavedModuleRecord, type SavedModuleRepo, type TemplateRecord, type TemplateRepo } from "./repo";
+import { PRESENCE_WINDOW_MS, type AiUsageRepo, type AssetRecord, type AssetRepo, type EmailRecord, type EmailRepo, type NewAsset, type PresenceRepo, type Scope, type SavedModuleRecord, type SavedModuleRepo, type TemplateRecord, type TemplateRepo } from "./repo";
 
 /** The rule every table follows: a team space's rows belong to the team; personal rows belong to their owner. */
 const inScope = (scope: Scope, r: { ownerId: string; workspaceId: string | null }) =>
@@ -150,5 +150,15 @@ export class MemoryPresenceRepo implements PresenceRepo {
   }
   async leave(scope: Scope, emailId: string) {
     this.rows.delete(`${emailId}:${scope.userId}`);
+  }
+}
+
+export class MemoryAiUsageRepo implements AiUsageRepo {
+  used = new Map<string, number>();
+  async take(userId: string, dailyLimit: number) {
+    const n = this.used.get(userId) ?? 0;
+    if (n >= dailyLimit) return -1;
+    this.used.set(userId, n + 1);
+    return dailyLimit - n - 1;
   }
 }

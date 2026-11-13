@@ -10,9 +10,10 @@ import { DEFAULT_TEMPLATE_IDS, defaultTemplates, emailFromTemplate, visibleTempl
 import { validateDocument } from "@/lib/email/registry";
 import { newEmailDocument } from "@/lib/email/starter";
 import { createEmail, deleteEmail, exportForDemo, exportForUser, getEmail, listAssets, listEmails, readAsset, updateEmail, uploadAsset, type HandlerContext } from "./handlers";
-import { MemoryAssetRepo, MemoryEmailRepo, MemoryPresenceRepo, MemorySavedModuleRepo, MemoryTemplateRepo } from "./memory-repo";
+import { MemoryAiUsageRepo, MemoryAssetRepo, MemoryEmailRepo, MemoryPresenceRepo, MemorySavedModuleRepo, MemoryTemplateRepo } from "./memory-repo";
 import { leavePresence, touchPresence } from "./handlers";
-import { copyToLibrary, type CopyTarget } from "./handlers";
+import { copyToLibrary, takeAiRequest, type CopyTarget } from "./handlers";
+import { AI_DAILY_LIMIT } from "@/lib/limits";
 import { PRESENCE_WINDOW_MS } from "./repo";
 
 function setup() {
@@ -22,7 +23,8 @@ function setup() {
   const templates = new MemoryTemplateRepo();
   /** A request from this person, in their own Library or (with `team`) in a team space. */
   const presence = new MemoryPresenceRepo();
-  const as = (userId: string | null, team: string | null = null): HandlerContext => ({ userId, workspaceId: team, emails, assets, savedModules, templates, presence });
+  const aiUsage = new MemoryAiUsageRepo();
+  const as = (userId: string | null, team: string | null = null): HandlerContext => ({ userId, workspaceId: team, emails, assets, savedModules, templates, presence, aiUsage });
   /** Where a copy goes: this person's own Library, or (with `team`) a team space. Whether they may is the database's call in real life. */
   const into = (userId: string, team: string | null = null): CopyTarget => ({ scope: { userId, workspaceId: team }, emails, assets, savedModules, templates });
   return { emails, assets, presence, as, into };
@@ -546,5 +548,25 @@ describe("copying to another Library", () => {
     const teamEmail = ((await (await createEmail(as2("alice", "team-acme"), { document: doc() })).json()) as { email: { id: string } }).email.id;
     expect((await copyToLibrary(as2("alice", "team-acme"), { kind: "email", id: teamEmail }, into2("alice"))).status).toBe(409);
     void emails;
+  });
+});
+
+describe("AI requests per day", () => {
+  it("lets a person make the day's allowance of requests and then stops them, without affecting anyone else", async () => {
+    const { as } = setup();
+    for (let i = 0; i < AI_DAILY_LIMIT; i++) expect(await takeAiRequest(as("alice"))).toBeNull();
+    const over = await takeAiRequest(as("alice"));
+    expect(over?.status).toBe(429);
+    expect(((await over!.json()) as { error: string }).error).toMatch(/used today\u2019s 30 AI requests/);
+    // being in a team space does not give a second allowance; other people have their own
+    expect((await takeAiRequest(as("alice", "team-acme")))?.status).toBe(429);
+    expect(await takeAiRequest(as("bob"))).toBeNull();
+  });
+
+  it("refuses when signed out, and when the count cannot be kept", async () => {
+    const { as } = setup();
+    expect((await takeAiRequest(as(null)))?.status).toBe(401);
+    const broken = { ...as("alice"), aiUsage: { take: async () => { throw new Error("database down"); } } };
+    expect((await takeAiRequest(broken))?.status).toBe(503);
   });
 });

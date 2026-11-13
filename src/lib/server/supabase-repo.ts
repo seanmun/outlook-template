@@ -13,7 +13,7 @@ import "server-only";
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { EmailDocument, ModuleInstance } from "@/lib/email/document";
-import { PRESENCE_WINDOW_MS, type AssetRecord, type AssetRepo, type EmailRecord, type EmailRepo, type NewAsset, type PresenceRepo, type Scope, type SavedModuleRecord, type SavedModuleRepo, type TemplateRecord, type TemplateRepo } from "./repo";
+import { PRESENCE_WINDOW_MS, type AiUsageRepo, type AssetRecord, type AssetRepo, type EmailRecord, type EmailRepo, type NewAsset, type PresenceRepo, type Scope, type SavedModuleRecord, type SavedModuleRepo, type TemplateRecord, type TemplateRepo } from "./repo";
 
 export const ASSET_BUCKET = "email-assets";
 
@@ -330,5 +330,18 @@ export class SupabasePresenceRepo implements PresenceRepo {
   async leave(scope: Scope, emailId: string) {
     const { error } = await this.db.from("email_presence").delete().eq("email_id", emailId).eq("user_id", scope.userId);
     if (error) fail("clear presence", error);
+  }
+}
+
+/* ---------------- AI usage ---------------- */
+
+export class SupabaseAiUsageRepo implements AiUsageRepo {
+  constructor(private db: SupabaseClient) {}
+
+  /** The database function counts for whoever the token belongs to; `userId` is not sent, so a count cannot be charged to someone else. */
+  async take(_userId: string, dailyLimit: number) {
+    const { data, error } = await this.db.rpc("use_ai_request", { daily_limit: dailyLimit });
+    if (error) fail("count AI request", error);
+    return typeof data === "number" ? data : -1;
   }
 }

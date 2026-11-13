@@ -26,6 +26,12 @@ export function limitsFor(team: boolean): SpaceLimits {
   return team ? TEAM_LIMITS : PERSONAL_LIMITS;
 }
 
+/**
+ * How many AI requests one person can make per day (the day turns over at midnight UTC).
+ * Every "Build it" and every follow-up message to the AI assistant is one request.
+ */
+export const AI_DAILY_LIMIT = 30;
+
 /** "12.5 MB" (or "340 KB" for small amounts), for showing sizes to people. */
 export function formatMb(bytes: number): string {
   if (bytes <= 0) return "0 MB";
