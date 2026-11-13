@@ -21,6 +21,8 @@ export const metadata: Metadata = {
   ...pageMetadata({ description: SITE_DESCRIPTION, path: "/" }),
   title: { default: SITE_TITLE, template: `%s | ${SITE_NAME}` },
   applicationName: SITE_NAME,
+  // Proves ownership of the site to Google Search Console. Public by design; removing it un-verifies the site.
+  verification: { google: "RphSZj69_tOuRcs2oPwtyCtrxv0b232E8vV68df-F-g" },
   // Each page sets its own canonical address; the layout must not hand "/" down to all of them.
   alternates: undefined,
 };
