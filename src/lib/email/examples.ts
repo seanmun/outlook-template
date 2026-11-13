@@ -75,12 +75,12 @@ export const EXAMPLES: EmailExample[] = [
         add("columns", null, { layout: "1-1-1" }, { ref: "steps" }),
         ...(
           [
-            ["Restart Outlook", "If it still looks stuck, close it and open it again."],
-            ["Check your Outbox", "Anything waiting there will send on its own."],
-            ["Resend if unsure", "Send urgent messages again if you can\u2019t tell they went out."],
+            ["Restart Outlook", "If it still looks stuck, close it and open it again.", "Restart icon"],
+            ["Check your Outbox", "Anything waiting there will send on its own.", "Outbox icon"],
+            ["Resend if unsure", "Send urgent messages again if you can\u2019t tell they went out.", "Send icon"],
           ] as const
-        ).flatMap(([title, body], column) => [
-          add("hero", { image: { alt: "", width: 72 } }, { padding: { top: 0, right: 0, bottom: 8, left: 0 } }, { parentId: "steps", column }),
+        ).flatMap(([title, body, alt], column) => [
+          add("hero", { image: { alt, width: 72 } }, { padding: { top: 0, right: 0, bottom: 8, left: 0 } }, { parentId: "steps", column }),
           add("text", { headline: title, body }, { align: "center", headlineSize: 16, padding: { top: 0, right: 0, bottom: 0, left: 0 } }, { parentId: "steps", column }),
         ]),
         add("text", { headline: "", body: "Still having trouble? Contact the service desk." }, { align: "left" }),

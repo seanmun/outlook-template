@@ -6,14 +6,14 @@
  * Two templates carrying the same email, differing only in how the body is stored:
  *   Test A.oft  raw HTML property (what the app exports today)
  *   Test B.oft  HTML wrapped in RTF (how Outlook itself, and other tools, store it)
- * The email is a real sample export plus a row of three buttons, one per rounding method
+ * The email is the "Outage update" starter template plus a row of three buttons, one per rounding method
  * (CSS, VML, picture), so one pass answers both open questions. The helper's steps are in
  * READ ME FIRST.txt; what the answers mean for us is at the bottom of this file.
  */
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import JSZip from "jszip";
-import { sampleEmailDocument } from "../src/lib/email/starter";
+import { EXAMPLES } from "../src/lib/email/examples";
 import { sampleBytes } from "../src/lib/email/samples";
 import { writeMsg } from "../src/lib/export/msg-writer";
 import { prepareExportInput, type ImageLoader } from "../src/lib/export/pipeline";
@@ -79,7 +79,7 @@ TEST A
    screenshot what you see, skip to TEST B, and tell us.
 
 5. Make the email window big. Screenshot the top half of the
-   email.                                         -> Screenshot 2
+   email, down to the three round red icons.      -> Screenshot 2
 
 6. Scroll to the bottom, to the part headed "Button test".
    There are three blue buttons. Screenshot them. -> Screenshot 3
@@ -105,7 +105,8 @@ Reply with the 5 screenshots and these answers:
  a) Did Test A open as a new email?            Yes / No
  b) Did Test B open as a new email?            Yes / No
  c) Was there any warning or error at any point? What did it say?
- d) Did the big picture at the top show in both?  Yes / No
+ d) Did the pictures show in both (the big one at the top and
+    the three round red icons)?                Yes / No
  e) Looking at the email you RECEIVED from Test A, which buttons
     have rounded corners?      Button 1 / Button 2 / Button 3
  f) Did Test A and Test B look the same as each other?
@@ -120,7 +121,8 @@ async function main() {
   mkdirSync(out, { recursive: true });
 
   const loader: ImageLoader = async (src) => (src.kind === "sample" ? { data: sampleBytes(src.sampleId)! } : null);
-  const input = await prepareExportInput(sampleEmailDocument("copperfield"), loader);
+  // The "Outage update" starter template: a banner, three columns with icons, text and a button.
+  const input = await prepareExportInput(EXAMPLES.find((e) => e.id === "outage-update")!.build(), loader);
 
   // Append the button row to the end of the 600px content table (the last table but one).
   const tail = "</table>\n</td></tr>\n</table>\n</body>";

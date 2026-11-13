@@ -40,7 +40,7 @@ export const oftExporter: Exporter = {
 export const emltplExporter: Exporter = {
   info: {
     id: "emltpl",
-    label: "Outlook for Mac template (.emltpl) (experimental)",
+    label: "Outlook for Mac template (.emltpl)",
     fileExtension: ".emltpl",
     mimeType: "message/rfc822",
     target: "Outlook for Mac",
@@ -53,14 +53,10 @@ export const emltplExporter: Exporter = {
         "No published specification exists for .emltpl. Community evidence says it is a MIME message with an X-Unsent header, and this writer produces that. It must be checked against a real template saved from Outlook for Mac (File > Save as Template) before it is enabled by default.",
     },
   },
+  // On for everyone, labelled in the app as still being tested. EXPORT_EMLTPL=off is the switch to pull it
+  // without a code change if real Outlook for Mac turns out not to open these files.
   availability: () =>
-    process.env.EXPORT_EMLTPL_EXPERIMENTAL === "true"
-      ? { enabled: true }
-      : {
-          enabled: false,
-          reason:
-            "Disabled until validated: .emltpl has no published spec, and we have not yet compared output against a template saved by Outlook for Mac. Provide a Mac-created sample (see docs/EXPORT.md), or set EXPORT_EMLTPL_EXPERIMENTAL=true to produce an unverified file for testing.",
-        },
+    process.env.EXPORT_EMLTPL === "off" ? { enabled: false, reason: "The Outlook for Mac download is switched off for now." } : { enabled: true },
   async export(input: ExportInput): Promise<ExportFile[]> {
     const mime = writeMime({
       subject: input.subject,

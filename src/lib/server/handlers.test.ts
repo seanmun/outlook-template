@@ -123,10 +123,14 @@ describe("uploads", () => {
 
 describe("export endpoint failures", () => {
   it("returns 422 with a reason for a disabled exporter", async () => {
-    delete process.env.EXPORT_EMLTPL_EXPERIMENTAL;
-    const r = await exportForDemo({ document: sampleEmailDocument("harbor-pine"), formats: ["emltpl"] });
-    expect(r.status).toBe(422);
-    expect(((await r.json()) as { error: string }).error).toMatch(/emltpl/);
+    process.env.EXPORT_EMLTPL = "off";
+    try {
+      const r = await exportForDemo({ document: sampleEmailDocument("harbor-pine"), formats: ["emltpl"] });
+      expect(r.status).toBe(422);
+      expect(((await r.json()) as { error: string }).error).toMatch(/emltpl/);
+    } finally {
+      delete process.env.EXPORT_EMLTPL;
+    }
   });
 
   it("returns 422 when a demo image is missing", async () => {

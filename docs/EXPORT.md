@@ -106,9 +106,12 @@ by Outlook for Mac:
 With that sample we will diff headers, part structure, encodings and any
 Mac-specific headers, adjust the writer, and then run the manual checklist.
 
-Until then the exporter is **disabled** and the UI shows the reason. For local
-testing only, `EXPORT_EMLTPL_EXPERIMENTAL=true` enables it; `pnpm export:samples`
-always writes `*.UNVERIFIED.emltpl` files.
+**Status (2026-11-12):** the exporter is now **on for everyone**, offered in the download window
+as "Outlook on Mac (new, still being tested)". It is still unverified in real Outlook for Mac.
+`EXPORT_EMLTPL=off` removes it without a code change. One reference point: a Stripo-exported
+`.emltpl` we examined is a single `text/html` part (quoted-printable), with no `X-Unsent` header,
+no plain-text part and remote images; ours embeds images and sets `X-Unsent: 1`. If ours does not
+open correctly, that simpler shape is the first thing to try.
 
 ## Image strategy
 

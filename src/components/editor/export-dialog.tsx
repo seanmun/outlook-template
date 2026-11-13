@@ -27,8 +27,10 @@ const DEVELOPER_VIEW = process.env.NODE_ENV === "development";
 async function templateFrom(zip: Blob): Promise<{ name: string; file: Blob } | null> {
   const { default: JSZip } = await import("jszip");
   const archive = await JSZip.loadAsync(zip);
-  const entry = Object.values(archive.files).find((f) => !f.dir && f.name.toLowerCase().endsWith(".oft"));
-  return entry ? { name: entry.name.split("/").pop()!, file: new Blob([await entry.async("arraybuffer")], { type: "application/vnd.ms-outlook" }) } : null;
+  const entry = Object.values(archive.files).find((f) => !f.dir && /\.(oft|emltpl)$/i.test(f.name));
+  if (!entry) return null;
+  const type = entry.name.toLowerCase().endsWith(".oft") ? "application/vnd.ms-outlook" : "message/rfc822";
+  return { name: entry.name.split("/").pop()!, file: new Blob([await entry.async("arraybuffer")], { type }) };
 }
 
 export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
@@ -37,6 +39,10 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const issues = useMemo(() => (open ? findContentIssues(state.doc) : []), [open, state.doc]);
   const [selected, setSelected] = useState<Set<ExporterId>>(() => new Set(config.exporters.filter((e) => e.availability.enabled && !e.developmentOnly).map((e) => e.id)));
   const [developerView, setDeveloperView] = useState(false);
+  const macAvailable = config.exporters.some((e) => e.id === "emltpl" && e.availability.enabled);
+  // Which Outlook the file is for. Starts on the visitor's own kind of computer; they can switch.
+  const [computer, setComputer] = useState<"windows" | "mac">(() => (macAvailable && typeof navigator !== "undefined" && /Mac/i.test(navigator.platform ?? navigator.userAgent) ? "mac" : "windows"));
+  const mac = macAvailable && computer === "mac";
   const [busy, setBusy] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
 
@@ -52,7 +58,7 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     setBusy(true);
     try {
       // Visitors always get the Outlook template. Other formats are only offered in the developer view.
-      const formats: ExporterId[] = developerView ? [...selected] : ["oft"];
+      const formats: ExporterId[] = developerView ? [...selected] : [mac ? "emltpl" : "oft"];
       const body =
         config.mode === "demo"
           ? { document: state.doc, formats, localImages: await localImagesForExport(state.doc) }
@@ -104,6 +110,29 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               <DialogDescription>You get one file, an Outlook template. Open it and Outlook starts a new email with everything in place.</DialogDescription>
             </DialogHeader>
 
+            {macAvailable && (
+              <div role="radiogroup" aria-label="Which Outlook is this for?" className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    ["windows", "Outlook on Windows", ""],
+                    ["mac", "Outlook on Mac", "New, still being tested"],
+                  ] as const
+                ).map(([id, label, note]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="radio"
+                    aria-checked={computer === id}
+                    onClick={() => setComputer(id)}
+                    className={`rounded-md border p-3 text-left text-sm transition ${computer === id ? "border-neutral-900 ring-1 ring-neutral-900" : "hover:border-neutral-400"}`}
+                  >
+                    <span className="block font-medium">{label}</span>
+                    {note && <span className="block text-xs text-neutral-500">{note}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+
             <ol className="space-y-2 text-sm text-neutral-700">
               {["Download the file and open it. Outlook opens a new email.", "Add who it is going to.", "Send it to yourself first to check it, then send it for real."].map((step, n) => (
                 <li key={step} className="flex gap-3">
@@ -130,7 +159,12 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
             )}
 
             <p className="text-xs text-neutral-500">
-              For Outlook on Windows. Outlook for Mac cannot open this kind of file. Your pictures are saved inside the file, so they always show.
+              {mac
+                ? "This file is for Outlook on a Mac. It will not open in Outlook on Windows; choose Windows above for that."
+                : macAvailable
+                  ? "This file is for Outlook on Windows. It will not open in Outlook on a Mac; choose Mac above for that."
+                  : "For Outlook on Windows. Outlook for Mac cannot open this kind of file."}{" "}
+              Your pictures are saved inside the file, so they always show.
             </p>
             {DEVELOPER_VIEW && (
               <button type="button" className="self-start text-xs text-neutral-500 underline" onClick={() => setDeveloperView(true)}>

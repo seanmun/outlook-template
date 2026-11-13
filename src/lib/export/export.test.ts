@@ -165,11 +165,16 @@ describe("MIME writer (EMLTPL experimental)", () => {
     expect(encodeHeaderValue("a\r\nBcc: x")).not.toMatch(/[\r\n]Bcc/);
   });
 
-  it("is disabled unless explicitly enabled, with a reason", () => {
-    delete process.env.EXPORT_EMLTPL_EXPERIMENTAL;
-    const a = emltplExporter.availability();
-    expect(a.enabled).toBe(false);
-    expect(a.reason).toMatch(/Mac-created sample/);
+  it("is on by default and can be switched off, with a reason", () => {
+    expect(emltplExporter.availability().enabled).toBe(true);
+    process.env.EXPORT_EMLTPL = "off";
+    try {
+      const a = emltplExporter.availability();
+      expect(a.enabled).toBe(false);
+      expect(a.reason).toMatch(/switched off/);
+    } finally {
+      delete process.env.EXPORT_EMLTPL;
+    }
   });
 });
 
@@ -203,10 +208,24 @@ describe("export pipeline", () => {
   });
 
   it("refuses a disabled exporter", async () => {
-    delete process.env.EXPORT_EMLTPL_EXPERIMENTAL;
-    await expect(buildExportPackage({ doc: newEmailDocument("harbor-pine"), formats: ["oft", "emltpl"], loadImage: sampleLoader })).rejects.toBeInstanceOf(
-      ExporterUnavailableError,
-    );
+    process.env.EXPORT_EMLTPL = "off";
+    try {
+      await expect(buildExportPackage({ doc: newEmailDocument("harbor-pine"), formats: ["oft", "emltpl"], loadImage: sampleLoader })).rejects.toBeInstanceOf(
+        ExporterUnavailableError,
+      );
+    } finally {
+      delete process.env.EXPORT_EMLTPL;
+    }
+  });
+
+  it("packages the Outlook for Mac template with the email's pictures inside", async () => {
+    const pkg = await buildExportPackage({ doc: sampleEmailDocument("harbor-pine"), formats: ["emltpl"], loadImage: sampleLoader });
+    const zip = await JSZip.loadAsync(pkg.zip);
+    const name = Object.keys(zip.files).find((n) => n.endsWith(".emltpl"))!;
+    const text = await zip.file(name)!.async("string");
+    expect(text).toMatch(/^X-Unsent: 1\r\n/);
+    expect(text).toContain("Content-Type: text/html; charset=utf-8");
+    expect(text).toMatch(/Content-ID: <img1\.[a-z0-9]+@outlook-template>/);
   });
 
   it("refuses unknown formats and empty format lists", async () => {
