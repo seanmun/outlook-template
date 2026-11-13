@@ -50,8 +50,8 @@ function EditorForVisitor({ id }: { id: string }) {
     return (
       <div className="p-10 text-sm">
         {loadError}{" "}
-        <Link className="underline" href="/new">
-          Back to drafts
+        <Link className="underline" href="/library">
+          Back to your Library
         </Link>
       </div>
     );
@@ -111,6 +111,16 @@ function LoadedEditor({
     return () => clearTimeout(t);
   }, [state.version, state.doc, save, saveStatus]);
 
+  // Leaving for another page inside the app: wait for any save in flight, then save what is still unsaved.
+  const latest = useRef(state);
+  useEffect(() => {
+    latest.current = state;
+  }, [state]);
+  const saveNow = useCallback(async () => {
+    for (let i = 0; i < 40 && saving.current; i++) await new Promise((r) => setTimeout(r, 100));
+    if (latest.current.version !== savedVersion.current) await save(latest.current.doc, latest.current.version);
+  }, [save]);
+
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
       if (state.version !== savedVersion.current) e.preventDefault();
@@ -157,7 +167,7 @@ function LoadedEditor({
       <DragProvider>
       <div className="flex h-screen flex-col overflow-hidden">
         <DemoBanner />
-        <TopBar onRetrySave={() => save(state.doc, state.version)} />
+        <TopBar onRetrySave={() => save(state.doc, state.version)} saveNow={saveNow} />
         <div className="flex min-h-0 flex-1">
           <aside className="flex w-80 shrink-0 flex-col border-r bg-white">
             <Tabs value={tab} onValueChange={(v) => setTab(String(v))} className="flex min-h-0 flex-1 flex-col gap-0">

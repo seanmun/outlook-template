@@ -40,8 +40,8 @@ export function AppHeader({ children }: { children?: React.ReactNode }) {
           <Link href="/guides" className="hidden text-sm font-medium text-neutral-700 hover:text-neutral-900 sm:inline">
             Guides
           </Link>
-          <Link href="/new" className="text-sm font-medium text-neutral-700 hover:text-neutral-900">
-            My emails
+          <Link href="/library" className="text-sm font-medium text-neutral-700 hover:text-neutral-900">
+            Library
           </Link>
         </>
       )}

@@ -76,7 +76,7 @@ export default function PrivacyPage() {
       <section>
         <h2>Your choices</h2>
         <ul>
-          <li>Delete a draft at any time from <Link href="/new">My emails</Link>.</li>
+          <li>Delete a draft at any time from <Link href="/library">your Library</Link>.</li>
           <li>Without an account, clearing this site&apos;s data in your browser removes everything.</li>
           <li>
             To have an account and its stored content deleted, get in touch through <a href={MAINTAINER.url}>{MAINTAINER.url.replace("https://", "")}</a>.

@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Monitor, Smartphone, Volume2, VolumeX } from "lucide-react";
+import { Monitor, Moon, Smartphone, Sun, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { UploadedImage } from "@/lib/client/stores";
@@ -14,6 +14,8 @@ import { COLUMNS_TYPE, allModules, findModule, locateModule, newModuleId, type E
 import type { ImageValue } from "@/lib/email/fields";
 import { getModule, moduleSupportsBrand } from "@/lib/email/registry";
 import { renderEmailHtml } from "@/lib/email/render";
+import { darkModePreview } from "@/lib/email/dark-preview";
+import { cutOutBackground } from "@/lib/client/remove-background";
 import { CanvasToolbar, type EditingField, type TextFormats } from "./canvas-toolbar";
 import { useEditor } from "./context";
 import { useDrag, type DropResolver } from "./drag";
@@ -55,6 +57,8 @@ export function Preview() {
   const frame = useRef<HTMLIFrameElement>(null);
   const scroll = useRef(0);
   const [width, setWidth] = useState<"desktop" | "narrow">("desktop");
+  /** Preview only: shows the email recoloured the way dark-themed mail apps do. The email itself is unchanged. */
+  const [dark, setDark] = useState(false);
   const [html, setHtml] = useState("");
   const sound = useSfxEnabled();
 
@@ -185,6 +189,26 @@ export function Preview() {
     },
     [assets, putImage],
   );
+  /** Swaps the picture in an image field for a copy with its plain background removed. Undo brings the original back. */
+  const cutOutImage = useCallback(
+    async (target: ImageTarget) => {
+      const m = findModule(docRef.current, target.moduleId);
+      const src = (m?.content[target.field] as ImageValue | undefined)?.src;
+      const url = src ? assets.previewUrl(src) : null;
+      if (!src || !url) return void toast.error("There is no picture here yet.");
+      const wait = toast.loading("Removing the background…");
+      try {
+        const picture = await assets.upload(await cutOutBackground(url));
+        putImage(target, picture);
+        toast.success("Background removed. Undo brings the original back.");
+      } catch (e) {
+        toast.error((e as Error).message);
+      } finally {
+        toast.dismiss(wait);
+      }
+    },
+    [assets, putImage],
+  );
   const canAddImageBlock = (() => {
     const hero = getModule("hero");
     return !!hero && moduleSupportsBrand(hero, brand);
@@ -255,11 +279,12 @@ export function Preview() {
   const rendered = useMemo(() => {
     void assetsVersion;
     try {
-      return renderEmailHtml(state.doc, { resolveImage: (s) => assets.previewUrl(s), annotate: true, animateModuleIds: seen.dropped });
+      const light = renderEmailHtml(state.doc, { resolveImage: (s) => assets.previewUrl(s), annotate: true, animateModuleIds: seen.dropped });
+      return dark ? darkModePreview(light) : light;
     } catch (e) {
       return `<p style="font-family:sans-serif;padding:20px;color:#b91c1c">Preview error: ${String((e as Error).message).replace(/</g, "&lt;")}</p>`;
     }
-  }, [state.doc, assets, assetsVersion, seen.dropped]);
+  }, [state.doc, assets, assetsVersion, seen.dropped, dark]);
   const renderedRef = useRef(rendered);
   useEffect(() => {
     renderedRef.current = rendered;
@@ -529,6 +554,16 @@ export function Preview() {
           >
             {sound ? <Volume2 /> : <VolumeX />}
           </Button>
+          <Button
+            variant={dark ? "secondary" : "ghost"}
+            size="icon-sm"
+            aria-pressed={dark}
+            aria-label={dark ? "Turn dark mode preview off" : "Preview in dark mode"}
+            title="Dark mode preview: roughly how Outlook and other mail apps recolour your email for people using a dark theme. Pictures are not changed, and neither is your email."
+            onClick={() => setDark(!dark)}
+          >
+            {dark ? <Sun /> : <Moon />}
+          </Button>
           <Button variant={width === "desktop" ? "secondary" : "ghost"} size="icon-sm" aria-label="Desktop width" onClick={() => setWidth("desktop")}>
             <Monitor />
           </Button>
@@ -545,7 +580,7 @@ export function Preview() {
       </div>
       <div className="flex min-h-0 flex-1 justify-center overflow-auto p-4">
         <div className="relative h-full shrink-0" style={{ width: frameWidth }}>
-          <iframe ref={frame} title="Email canvas" sandbox="allow-same-origin" srcDoc={html} onLoad={onLoad} className="h-full w-full rounded border bg-white shadow-sm" />
+          <iframe ref={frame} title="Email canvas" sandbox="allow-same-origin" srcDoc={html} onLoad={onLoad} className={`h-full w-full rounded border shadow-sm ${dark ? "border-neutral-700 bg-neutral-900" : "bg-white"}`} />
           {selected && selBox && pad && showPadding && (
             // Padding shown the way browser inspectors do: a tinted band per side with its size in pixels.
             <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden rounded" data-padding-overlay>
@@ -584,7 +619,12 @@ export function Preview() {
                 onBeforeRestyle={() => {
                   refocus.current = editing ? { moduleId: editing.moduleId, field: editing.field } : null;
                 }}
-                onImage={(action, field) => (action === "upload" ? openPicker({ moduleId: selected.id, field }) : setLibrary({ moduleId: selected.id, field }))}
+                onImage={(action, field) => {
+                  const target = { moduleId: selected.id, field };
+                  if (action === "upload") openPicker(target);
+                  else if (action === "library") setLibrary(target);
+                  else void cutOutImage(target);
+                }}
                 linkAsk={linkAsk?.moduleId === selected.id ? linkAsk : null}
               />
               </div>

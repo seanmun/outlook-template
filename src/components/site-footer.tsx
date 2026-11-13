@@ -29,8 +29,8 @@ export function SiteFooter() {
               </Link>
             </li>
             <li>
-              <Link href="/new" className={link}>
-                My emails
+              <Link href="/library" className={link}>
+                Library
               </Link>
             </li>
             <li>

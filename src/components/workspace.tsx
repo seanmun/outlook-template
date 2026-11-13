@@ -1,31 +1,23 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { FileText, Plus, Sparkles, Trash2 } from "lucide-react";
+import { ArrowRight, FileText, Plus, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useConfig } from "@/lib/client/config";
-import { storesFor, type DraftSummary } from "@/lib/client/stores";
-import { BRANDS, getBrand } from "@/lib/email/brands";
+import { storesFor } from "@/lib/client/stores";
+import { BRANDS } from "@/lib/email/brands";
 import { newEmailDocument, sampleEmailDocument } from "@/lib/email/starter";
-import { WorkspaceLibrary } from "./workspace-library";
 
-/** Where an email starts: pick a brand and a starting point, or reopen a draft. */
+/** Where an email starts: pick a brand and a starting point. Existing emails are in the Library. */
 export function Workspace() {
   const config = useConfig();
   const { drafts } = useMemo(() => storesFor(config.mode), [config.mode]);
   const router = useRouter();
   const [brandId, setBrandId] = useState(BRANDS[0].id);
-  const [list, setList] = useState<DraftSummary[] | null>(null);
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    drafts.list().then(setList).catch((e: Error) => {
-      toast.error(e.message);
-      setList([]);
-    });
-  }, [drafts]);
 
   async function create(kind: "blank" | "sample" | "ai") {
     setBusy(true);
@@ -37,16 +29,6 @@ export function Workspace() {
     } catch (e) {
       toast.error((e as Error).message);
       setBusy(false);
-    }
-  }
-
-  async function remove(id: string) {
-    if (!confirm("Delete this email? This cannot be undone.")) return;
-    try {
-      await drafts.remove(id);
-      setList((l) => l?.filter((x) => x.id !== id) ?? null);
-    } catch (e) {
-      toast.error((e as Error).message);
     }
   }
 
@@ -85,35 +67,13 @@ export function Workspace() {
           {!config.ai.enabled && <p className="mt-2 text-xs text-neutral-500">{config.ai.reason}</p>}
         </section>
 
-        <section>
-          <h2 className="mb-1 text-sm font-semibold text-neutral-700">Your emails{list && list.length > 0 ? ` (${list.length})` : ""}</h2>
-          <p className="mb-2 text-xs text-neutral-500">
-            Every email saves itself as you work. {config.mode === "production" ? "Saved to your account." : "Saved in this browser only."}
-          </p>
-          {list === null ? (
-            <p className="text-sm text-neutral-500">Loading…</p>
-          ) : list.length === 0 ? (
-            <p className="text-sm text-neutral-500">No emails yet. Start one above.</p>
-          ) : (
-            <ul className="divide-y rounded-lg border bg-white">
-              {list.map((d) => (
-                <li key={d.id} className="flex items-center gap-3 px-4 py-3">
-                  <button className="min-w-0 flex-1 text-left" onClick={() => router.push(`/editor/${d.id}`)}>
-                    <div className="truncate text-sm font-medium">{d.title || "Untitled email"}</div>
-                    <div className="truncate text-xs text-neutral-500">
-                      {getBrand(d.brandId)?.name ?? d.brandId} · {d.subject || "No subject"} · {new Date(d.updatedAt).toLocaleString()}
-                    </div>
-                  </button>
-                  <Button variant="ghost" size="icon" aria-label="Delete email" onClick={() => remove(d.id)}>
-                    <Trash2 />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <WorkspaceLibrary />
+        <Link href="/library" className="flex items-center justify-between gap-3 rounded-lg border bg-white p-5 transition hover:border-neutral-900">
+          <span>
+            <span className="block text-lg font-semibold">Library</span>
+            <span className="mt-1 block text-sm text-neutral-500">Reopen an email, or see your saved blocks and images.</span>
+          </span>
+          <ArrowRight className="size-5 shrink-0 text-neutral-500" />
+        </Link>
     </>
   );
 }

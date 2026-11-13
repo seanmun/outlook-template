@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import { Redo2, Undo2, Download, AlertTriangle, Check, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Redo2, Undo2, Download, AlertTriangle, Check, LibraryBig, Loader2 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,9 +42,20 @@ function SaveIndicator({ onRetry }: { onRetry: () => void }) {
   }
 }
 
-export function TopBar({ onRetrySave }: { onRetrySave: () => void }) {
+export function TopBar({ onRetrySave, saveNow }: { onRetrySave: () => void; saveNow: () => Promise<void> }) {
   const { state, change, dispatch, brand } = useEditor();
+  const router = useRouter();
   const [exportOpen, setExportOpen] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  /** Saves first, so nothing typed in the last second is lost, then opens the Library. */
+  async function toLibrary() {
+    setLeaving(true);
+    try {
+      await saveNow();
+    } finally {
+      router.push("/library");
+    }
+  }
   return (
     <>
       <AppHeader>
@@ -80,6 +92,9 @@ export function TopBar({ onRetrySave }: { onRetrySave: () => void }) {
             <Redo2 />
           </Button>
         </div>
+        <Button variant="outline" size="sm" disabled={leaving} onClick={toLibrary} title="Your emails, saved blocks and images">
+          {leaving ? <Loader2 className="animate-spin" /> : <LibraryBig />} Library
+        </Button>
         <Button size="sm" onClick={() => setExportOpen(true)}>
           <Download /> Export
         </Button>

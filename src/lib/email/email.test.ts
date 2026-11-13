@@ -8,6 +8,7 @@ import { columnWidths } from "./modules/columns";
 import { EXAMPLES } from "./examples";
 import { MODULES, createModuleInstance, validateDocument } from "./registry";
 import { collectImageSources, renderEmailHtml } from "./render";
+import { darkModePreview, darkSurface, darkText } from "./dark-preview";
 import { liteToRichText, RichTextSchema } from "./richtext";
 import { newEmailDocument, sampleEmailDocument } from "./starter";
 import { sampleDataUrl } from "./samples";
@@ -155,6 +156,36 @@ describe("module registry and rendering", () => {
     expect(msgs).toMatch(/Headline & body: Body contains a placeholder/);
     expect(msgs).toMatch(/CTA button: Button link is missing/);
     expect(msgs).toMatch(/Footer: Footer text contains a placeholder/);
+  });
+});
+
+describe("dark mode preview", () => {
+  it("turns light surfaces dark and dark text light, and leaves the rest alone", () => {
+    expect(darkSurface("#ffffff")).toBe("#1f1f1f");
+    expect(darkSurface("#171717")).toBe("#171717");
+    expect(darkText("#000000")).toBe("#f0f0f0");
+    expect(darkText("#ffffff")).toBe("#ffffff");
+    // hue survives: a dark blue link stays blue, only lighter
+    const link = darkText("#1d4ed8");
+    expect(parseInt(link.slice(5, 7), 16)).toBeGreaterThan(parseInt(link.slice(1, 3), 16));
+  });
+
+  it("recolours the email body only, and never touches pictures or the document", () => {
+    const doc = sampleEmailDocument("copperfield");
+    const before = JSON.stringify(doc);
+    const light = renderEmailHtml(doc, { resolveImage: resolve, annotate: true });
+    const dark = darkModePreview(light);
+    expect(JSON.stringify(doc)).toBe(before);
+    expect(dark).not.toBe(light);
+    // the canvas's own styles in <head> are identical
+    expect(dark.slice(0, dark.indexOf("<body"))).toBe(light.slice(0, light.indexOf("<body")));
+    // same pictures, same text, same structure: only colour values differ
+    const strip = (h: string) => h.replace(/#[0-9a-fA-F]{6}/g, "#");
+    expect(strip(dark)).toBe(strip(light));
+    expect(dark.match(/<img[^>]*>/g)?.map((t) => t.replace(/#[0-9a-fA-F]{6}/g, "#"))).toEqual(light.match(/<img[^>]*>/g)?.map((t) => t.replace(/#[0-9a-fA-F]{6}/g, "#")));
+    // the white content area is no longer white
+    expect(light).toContain('bgcolor="#ffffff"');
+    expect(dark).not.toContain('bgcolor="#ffffff"');
   });
 });
 

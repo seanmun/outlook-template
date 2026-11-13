@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bold, Bookmark, Check, Copy, ImageOff, ImagePlus, Images, Italic, Link as LinkIcon, List, Minus, Plus, Trash2, UnfoldVertical, Unlink, X } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bold, Bookmark, Check, Copy, Eraser, ImageOff, ImagePlus, Images, Italic, Link as LinkIcon, List, Minus, Plus, Trash2, UnfoldVertical, Unlink, X } from "lucide-react";
 import { toast } from "sonner";
 import { moduleInnerWidth } from "@/lib/editor/image-field";
 import { docOps } from "@/lib/editor/state";
@@ -49,7 +49,8 @@ export function CanvasToolbar(props: {
   /** Called before a setting change that re-renders the canvas, so the text cursor can be put back. */
   onBeforeRestyle: () => void;
   /** Starts an upload into, or opens the library for, one of the module's image fields. */
-  onImage: (action: "upload" | "library", field: string) => void;
+  /** "cutout" removes the picture's plain background and swaps in the transparent version. */
+  onImage: (action: "upload" | "library" | "cutout", field: string) => void;
   /** A link the user clicked on the canvas (e.g. one social icon): its box opens straight away. `n` changes per click. */
   linkAsk: { key: string; n: number } | null;
 }) {
@@ -258,6 +259,7 @@ export function CanvasToolbar(props: {
                   [
                     ["Upload from your computer", <ImagePlus key="i" />, () => props.onImage("upload", imageSpec.key)],
                     ["Choose from your library", <Images key="i" />, () => props.onImage("library", imageSpec.key)],
+                    ...(image.src ? [["Remove background", <Eraser key="i" />, () => props.onImage("cutout", imageSpec.key)] as const] : []),
                     ...(image.src ? [["Remove image", <ImageOff key="i" />, () => setContent(imageSpec.key, { ...image, src: null, naturalWidth: null, naturalHeight: null })] as const] : []),
                   ] as const
                 ).map(([label, icon, run]) => (
