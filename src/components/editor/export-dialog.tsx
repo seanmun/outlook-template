@@ -33,6 +33,38 @@ async function templateFrom(zip: Blob): Promise<{ name: string; file: Blob } | n
   return { name: entry.name.split("/").pop()!, file: new Blob([await entry.async("arraybuffer")], { type }) };
 }
 
+const BOTH_README = [
+  "Your email, as two Outlook templates",
+  "====================================",
+  "",
+  "There are two files here. They hold the same email.",
+  "",
+  "  The file ending in .oft     is for Outlook on Windows.",
+  "  The file ending in .emltpl  is for Outlook on a Mac.",
+  "",
+  "Open the one for your computer. Outlook starts a new email with",
+  "everything in place. Add who it is going to, send it to yourself",
+  "first to check it, then send it for real.",
+  "",
+  "Each file only opens on its own kind of computer. If you are",
+  "passing this on, give each person the file that matches theirs.",
+  "",
+  "The Mac file is new and still being tested.",
+  "",
+].join("\r\n");
+
+/** Repacks the server's ZIP for a visitor who wants both: the two templates and a plain note, without the developer README. */
+async function bothFrom(zip: Blob): Promise<Blob | null> {
+  const { default: JSZip } = await import("jszip");
+  const archive = await JSZip.loadAsync(zip);
+  const templates = Object.values(archive.files).filter((f) => !f.dir && /\.(oft|emltpl)$/i.test(f.name));
+  if (templates.length < 2) return null;
+  const out = new JSZip();
+  for (const f of templates) out.file(f.name.split("/").pop()!, await f.async("arraybuffer"));
+  out.file("READ ME FIRST.txt", BOTH_README);
+  return out.generateAsync({ type: "blob", compression: "DEFLATE" });
+}
+
 export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const config = useConfig();
   const { state } = useEditor();
@@ -41,8 +73,9 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const [developerView, setDeveloperView] = useState(false);
   const macAvailable = config.exporters.some((e) => e.id === "emltpl" && e.availability.enabled);
   // Which Outlook the file is for. Starts on the visitor's own kind of computer; they can switch.
-  const [computer, setComputer] = useState<"windows" | "mac">(() => (macAvailable && typeof navigator !== "undefined" && /Mac/i.test(navigator.platform ?? navigator.userAgent) ? "mac" : "windows"));
+  const [computer, setComputer] = useState<"windows" | "mac" | "both">(() => (macAvailable && typeof navigator !== "undefined" && /Mac/i.test(navigator.platform ?? navigator.userAgent) ? "mac" : "windows"));
   const mac = macAvailable && computer === "mac";
+  const both = macAvailable && computer === "both";
   const [busy, setBusy] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
 
@@ -58,7 +91,7 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     setBusy(true);
     try {
       // Visitors always get the Outlook template. Other formats are only offered in the developer view.
-      const formats: ExporterId[] = developerView ? [...selected] : [mac ? "emltpl" : "oft"];
+      const formats: ExporterId[] = developerView ? [...selected] : both ? ["oft", "emltpl"] : [mac ? "emltpl" : "oft"];
       const body =
         config.mode === "demo"
           ? { document: state.doc, formats, localImages: await localImagesForExport(state.doc) }
@@ -71,8 +104,8 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       const zip = await res.blob();
       const zipName = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? "email.zip";
       // One template: hand over the .oft itself, not a ZIP to unpack. If that fails for any reason, the ZIP still works.
-      const single = developerView ? null : await templateFrom(zip).catch(() => null);
-      const blob = single?.file ?? zip;
+      const single = developerView || both ? null : await templateFrom(zip).catch(() => null);
+      const blob = single?.file ?? (both && !developerView ? ((await bothFrom(zip).catch(() => null)) ?? zip) : zip);
       const name = single?.name ?? zipName;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -107,15 +140,20 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
           <>
             <DialogHeader>
               <DialogTitle>Download your email</DialogTitle>
-              <DialogDescription>You get one file, an Outlook template. Open it and Outlook starts a new email with everything in place.</DialogDescription>
+              <DialogDescription>
+                {both
+                  ? "You get two files in one zip: an Outlook template for Windows and one for Mac. Open the one for your computer and Outlook starts a new email with everything in place."
+                  : "You get one file, an Outlook template. Open it and Outlook starts a new email with everything in place."}
+              </DialogDescription>
             </DialogHeader>
 
             {macAvailable && (
-              <div role="radiogroup" aria-label="Which Outlook is this for?" className="grid grid-cols-2 gap-2">
+              <div role="radiogroup" aria-label="Which Outlook is this for?" className="grid gap-2 sm:grid-cols-3">
                 {(
                   [
                     ["windows", "Outlook on Windows", ""],
                     ["mac", "Outlook on Mac", "New, still being tested"],
+                    ["both", "Both", "One zip with both files"],
                   ] as const
                 ).map(([id, label, note]) => (
                   <button
@@ -134,7 +172,11 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
             )}
 
             <ol className="space-y-2 text-sm text-neutral-700">
-              {["Download the file and open it. Outlook opens a new email.", "Add who it is going to.", "Send it to yourself first to check it, then send it for real."].map((step, n) => (
+              {[
+                both ? "Download the zip, unzip it, and open the file for your computer. Outlook opens a new email." : "Download the file and open it. Outlook opens a new email.",
+                "Add who it is going to.",
+                "Send it to yourself first to check it, then send it for real.",
+              ].map((step, n) => (
                 <li key={step} className="flex gap-3">
                   <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-xs font-semibold text-white">{n + 1}</span>
                   {/* The last step is the one people skip and regret, so it stands out. */}
@@ -159,7 +201,9 @@ export function ExportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
             )}
 
             <p className="text-xs text-neutral-500">
-              {mac
+              {both
+                ? "You get a zip with two files: one for Outlook on Windows (.oft) and one for Outlook on a Mac (.emltpl). Each only opens on its own kind of computer."
+                : mac
                 ? "This file is for Outlook on a Mac. It will not open in Outlook on Windows; choose Windows above for that."
                 : macAvailable
                   ? "This file is for Outlook on Windows. It will not open in Outlook on a Mac; choose Mac above for that."
