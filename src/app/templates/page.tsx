@@ -37,7 +37,7 @@ export default function Page() {
         <h2 id="list-heading" className={ARTICLE_H2}>
           Pick a starting point
         </h2>
-        <ul className="grid gap-5 sm:grid-cols-3">
+        <ul className="grid gap-5 sm:grid-cols-2">
           {TEMPLATE_PAGES.map((t) => (
             <li key={t.slug}>
               <Link href={`/templates/${t.slug}`} className="group block h-full border-2 border-neutral-200 bg-white transition-all duration-150 hover:-translate-y-1 hover:border-neutral-900 hover:shadow-[5px_5px_0_0_#171717]">

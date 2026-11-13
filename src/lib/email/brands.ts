@@ -158,7 +158,8 @@ export const BRANDS: Brand[] = [
       heading: "#171717",
       text: "#404040",
       mutedText: "#737373",
-      primary: "#171717",
+      // Blue, not black: a black button disappears when a mail app shows the email in dark mode.
+      primary: "#1d4ed8",
       primaryText: "#ffffff",
       link: "#1d4ed8",
       footerBackground: "#f4f4f5",

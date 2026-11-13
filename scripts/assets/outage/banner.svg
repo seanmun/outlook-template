@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" width="1200" height="520">
+  <defs>
+    <pattern id="grid" width="65" height="65" patternUnits="userSpaceOnUse">
+      <path d="M65 0H0V65" fill="none" stroke="#262626" stroke-width="2"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="520" fill="#171717"/>
+  <rect width="1200" height="520" fill="url(#grid)"/>
+  <!-- envelope -->
+  <g fill="none" stroke="#fafafa" stroke-width="14" stroke-linejoin="round" stroke-linecap="round">
+    <rect x="410" y="140" width="380" height="250" rx="18" fill="#171717"/>
+    <path d="M418 160 600 290 782 160"/>
+  </g>
+  <!-- "working again" tick -->
+  <circle cx="790" cy="385" r="84" fill="#171717"/>
+  <circle cx="790" cy="385" r="68" fill="#16a34a"/>
+  <path d="M758 386l22 23 43-48" fill="none" stroke="#ffffff" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- a few lit cells, like keys coming back on -->
+  <rect x="197" y="132" width="61" height="61" fill="#e7000b" opacity=".9"/>
+  <rect x="132" y="262" width="61" height="61" fill="#2e2e2e"/>
+  <rect x="977" y="67" width="61" height="61" fill="#2e2e2e"/>
+  <rect x="1042" y="327" width="61" height="61" fill="#e7000b" opacity=".9"/>
+  <rect x="912" y="392" width="61" height="61" fill="#2e2e2e"/>
+</svg>

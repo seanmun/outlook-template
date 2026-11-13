@@ -5,14 +5,13 @@ import { ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useConfig } from "@/lib/client/config";
 import { storesFor } from "@/lib/client/stores";
-import { getBrand } from "@/lib/email/brands";
 import { EXAMPLES, type EmailExample } from "@/lib/email/examples";
 import { renderEmailHtml } from "@/lib/email/render";
 import { sampleDataUrl } from "@/lib/email/samples";
 
 const FRAME_WIDTH = 680;
 const FRAME_HEIGHT = 1080;
-const SCALE = 0.4;
+const SCALE = 0.3;
 
 /** A live, scaled-down render of an example: the same HTML the exporter writes, shown in a script-less frame. */
 function Thumbnail({ example }: { example: EmailExample }) {
@@ -61,7 +60,7 @@ export function ExampleGallery() {
           <p className="mt-2 text-sm text-neutral-600">Real output, not mock-ups. Open one and it&apos;s yours to edit: drag blocks, type on the email, download the template.</p>
         </div>
       </div>
-      <ul className="grid gap-5 sm:grid-cols-3">
+      <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {EXAMPLES.map((example) => (
           <li key={example.id}>
             <button
@@ -73,13 +72,12 @@ export function ExampleGallery() {
               <Thumbnail example={example} />
               <span className="block p-3">
                 <span className="flex items-center justify-between gap-2">
-                  <span className="font-semibold text-neutral-900">{example.name}</span>
+                  <span className="text-sm font-semibold text-neutral-900">{example.name}</span>
                   <span className="flex items-center gap-1 text-xs font-semibold text-red-600">
                     {opening === example.id ? <Loader2 className="size-3.5 animate-spin" /> : <>Open <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" /></>}
                   </span>
                 </span>
                 <span className="mt-0.5 block text-xs text-neutral-500">{example.blurb}</span>
-                <span className="mt-1 block text-[11px] text-neutral-400">{getBrand(example.brandId)?.name}</span>
               </span>
             </button>
           </li>

@@ -265,8 +265,8 @@ describe("templates", () => {
   it("shows a person their own templates first, then the starter templates they kept", () => {
     const own = [{ id: "a", name: "Mine", document: sampleEmailDocument("harbor-pine"), savedAt: "2026-11-12T00:00:00Z" }];
     const shown = visibleTemplates(own, [DEFAULT_TEMPLATE_IDS[1]]);
-    expect(shown.map((t) => t.id)).toEqual(["a", DEFAULT_TEMPLATE_IDS[0], DEFAULT_TEMPLATE_IDS[2]]);
-    expect(shown.map((t) => t.isDefault)).toEqual([false, true, true]);
+    expect(shown.map((t) => t.id)).toEqual(["a", ...DEFAULT_TEMPLATE_IDS.filter((_, i) => i !== 1)]);
+    expect(shown.map((t) => t.isDefault)).toEqual([false, ...DEFAULT_TEMPLATE_IDS.slice(1).map(() => true)]);
   });
 
   it("starts an email from a template without touching the template", () => {

@@ -1,10 +1,11 @@
 import { SAMPLE_IMAGES } from "./samples.generated";
 import { SOCIAL_ICON_IMAGES } from "./social-icons.generated";
+import { OUTAGE_IMAGES } from "./outage-images.generated";
 
-export type SampleImage = (typeof SAMPLE_IMAGES)[number] | (typeof SOCIAL_ICON_IMAGES)[number];
+export type SampleImage = (typeof SAMPLE_IMAGES)[number] | (typeof SOCIAL_ICON_IMAGES)[number] | (typeof OUTAGE_IMAGES)[number];
 
 export function getSampleImage(id: string): SampleImage | undefined {
-  return SAMPLE_IMAGES.find((s) => s.id === id) ?? SOCIAL_ICON_IMAGES.find((s) => s.id === id);
+  return SAMPLE_IMAGES.find((s) => s.id === id) ?? SOCIAL_ICON_IMAGES.find((s) => s.id === id) ?? OUTAGE_IMAGES.find((s) => s.id === id);
 }
 
 export function sampleDataUrl(id: string): string | null {

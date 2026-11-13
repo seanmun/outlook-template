@@ -28,22 +28,67 @@ const add = (moduleType: string, content: Record<string, unknown> | null = null,
   column: extra.column,
 });
 
-function build(brandId: string, title: string, subject: string, ops: Operation[]): EmailDocument {
+/**
+ * `pictures` names a bundled picture for each image block, in the order the blocks appear.
+ * Without it, every image block gets the brand's sample banner.
+ */
+function build(brandId: string, title: string, subject: string, ops: Operation[], pictures?: string[]): EmailDocument {
   const applied = applyOperations({ ...newEmailDocument(brandId, title), subject, modules: [] }, ops);
   if (!applied.ok) throw new Error(`Example "${title}" is invalid: ${applied.errors.map((e) => e.message).join("; ")}`);
   // Image blocks use the brand's bundled sample picture, since examples cannot carry uploads.
-  const sample = getSampleImage(SAMPLE_HERO_BY_BRAND[brandId] ?? "");
-  if (sample) {
-    for (const m of allModules(applied.doc)) {
-      if (m.type !== "hero") continue;
-      const image = m.content.image as Record<string, unknown>;
-      m.content = { ...m.content, image: { ...image, src: { kind: "sample", sampleId: sample.id }, naturalWidth: sample.width, naturalHeight: sample.height } };
+  const brandSample = getSampleImage(SAMPLE_HERO_BY_BRAND[brandId] ?? "");
+  let n = 0;
+  for (const m of allModules(applied.doc)) {
+    if (m.type !== "hero") continue;
+    const sample = pictures ? getSampleImage(pictures[n++] ?? "") : brandSample;
+    if (!sample) {
+      if (pictures) throw new Error(`Example "${title}" has an image block without a bundled picture.`);
+      continue;
     }
+    const image = m.content.image as Record<string, unknown>;
+    m.content = { ...m.content, image: { ...image, src: { kind: "sample", sampleId: sample.id }, naturalWidth: sample.width, naturalHeight: sample.height } };
   }
   return applied.doc;
 }
 
 export const EXAMPLES: EmailExample[] = [
+  {
+    // For the day the email system itself was the news. Like every example, the details are invented
+    // sample copy for the sender to replace with what actually happened at their company.
+    id: "outage-update",
+    name: "Outage update",
+    blurb: "Email is back: what happened, what to do.",
+    brandId: "plain",
+    build: () =>
+      build("plain", "Example: outage update", "Email is working again: what happened on November 12", [
+        add("header"),
+        add("hero", { image: { alt: "An envelope with a green tick: email is working again" } }),
+        add(
+          "text",
+          {
+            headline: "Email is working again",
+            body: "Outlook was down for a lot of organisations on Thursday, November 12, ours included. It is back now.\n\n**What happened:** Our email provider had a widespread outage. For us, email was unavailable from about 9:00 until 13:30.",
+          },
+          { align: "left" },
+        ),
+        add("text", { headline: "What to do now", body: "" }, { align: "left", headlineSize: 20, padding: { top: 8, right: 40, bottom: 0, left: 40 } }),
+        add("columns", null, { layout: "1-1-1" }, { ref: "steps" }),
+        ...(
+          [
+            ["Restart Outlook", "If it still looks stuck, close it and open it again."],
+            ["Check your Outbox", "Anything waiting there will send on its own."],
+            ["Resend if unsure", "Send urgent messages again if you can\u2019t tell they went out."],
+          ] as const
+        ).flatMap(([title, body], column) => [
+          add("hero", { image: { alt: "", width: 72 } }, { padding: { top: 0, right: 0, bottom: 8, left: 0 } }, { parentId: "steps", column }),
+          add("text", { headline: title, body }, { align: "center", headlineSize: 16, padding: { top: 0, right: 0, bottom: 0, left: 0 } }, { parentId: "steps", column }),
+        ]),
+        add("text", { headline: "", body: "Still having trouble? Contact the service desk." }, { align: "left" }),
+        add("cta", { label: "Check service status" }, { align: "left" }),
+        add("divider"),
+        add("footer", { body: "Your company · IT Service Desk\n\nCall the service desk or reply to this email." }),
+      ], ["outage-banner", "outage-step-restart", "outage-step-outbox", "outage-step-resend"]),
+  },
   {
     id: "town-hall",
     name: "Event invite",

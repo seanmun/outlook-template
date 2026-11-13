@@ -16,6 +16,16 @@ export interface TemplatePage {
 
 export const TEMPLATE_PAGES: TemplatePage[] = [
   {
+    slug: "outlook-outage-update",
+    exampleId: "outage-update",
+    name: "Outage update",
+    heading: "Outlook outage update email template",
+    description: "A free Outlook email template for telling staff that email is working again after an outage: what happened, what to do now, and who to contact. Plain layout, ready to fill in and send.",
+    goodFor: ["The all-clear after an Outlook or Microsoft 365 outage", "Updates while a problem is still going on", "Any \u201cwe are back\u201d notice after a system was down", "Follow-ups explaining what went wrong"],
+    contains: ["Company name header", "Headline: email is working again", "A short \u201cwhat happened\u201d paragraph with the times email was down", "Three things to do now, as a bullet list", "One button, for example \u201cCheck service status\u201d", "Footer with the service desk\u2019s contact details"],
+    tips: ["Lead with the good news: it is working again. The explanation comes second.", "Give the times email was down, so people know which messages to double-check.", "Tell people exactly what to do, even if the answer is \u201cnothing\u201d."],
+  },
+  {
     slug: "event-invitation",
     exampleId: "town-hall",
     name: "Event invitation",
