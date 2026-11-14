@@ -203,6 +203,18 @@ export class SupabaseAssetRepo implements AssetRepo {
     if (error) fail("check assets", error);
     return new Set((data ?? []).map((r: { id: string }) => r.id));
   }
+
+  async remove(scope: Scope, id: string) {
+    // The record goes first: once it is gone the image no longer counts against the space or shows anywhere.
+    const { data, error } = await within(this.db.from("assets").delete().eq("id", id), scope).select("storage_path");
+    if (error) fail("delete asset", error);
+    const paths = (data ?? []).map((r: { storage_path: string }) => r.storage_path);
+    if (paths.length === 0) return false;
+    const gone = await this.db.storage.from(ASSET_BUCKET).remove(paths);
+    // A file left behind is invisible to the person and safe to clear up later, so it does not fail the delete.
+    if (gone.error) console.error("delete asset: the stored file could not be removed", gone.error.message);
+    return true;
+  }
 }
 
 /* ---------------- Saved modules ---------------- */

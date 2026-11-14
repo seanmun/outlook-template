@@ -9,6 +9,7 @@ import { collectImageSources } from "@/lib/email/render";
 import { validateDocument } from "@/lib/email/registry";
 import { sampleDataUrl } from "@/lib/email/samples";
 import { DEFAULT_TEMPLATE_IDS, MAX_TEMPLATES, visibleTemplates, type Template } from "@/lib/email/templates";
+import { imageInUseMessage, imageIsUsed, usesImage, type ImageUsage } from "@/lib/image-usage";
 
 export interface DraftSummary {
   id: string;
@@ -68,6 +69,8 @@ export interface AssetClient {
   previewUrl(src: ImageSource): string | null;
   /** Ensures preview URLs for these sources are available; resolves when loaded. */
   preload(sources: ImageSource[]): Promise<void>;
+  /** Deletes an uploaded image. Throws ApiError(409), saying where, while anything still uses it. */
+  remove(assetId: string): Promise<void>;
 }
 
 /* ---------------- Production ---------------- */
@@ -118,9 +121,15 @@ export const apiAssetClient: AssetClient = {
     return src.kind === "sample" ? sampleDataUrl(src.sampleId) : `/api/assets/${encodeURIComponent(src.assetId)}`;
   },
   async preload() {},
+  async remove(assetId) {
+    await api(`/api/assets/${encodeURIComponent(assetId)}`, { method: "DELETE" });
+  },
 };
 
 /* ---------------- Demo (browser-local) ---------------- */
+
+const TEMPLATES_KEY = "otb.templates.v1";
+const HIDDEN_TEMPLATES_KEY = "otb.templates.hidden.v1";
 
 const LS_KEY = "otb.demo.drafts.v1";
 
@@ -204,6 +213,15 @@ async function idbAll(): Promise<{ key: string; value: string }[]> {
     r.onerror = () => rej(r.error);
   });
 }
+async function idbDelete(key: string) {
+  const db = await idb();
+  await new Promise<void>((res, rej) => {
+    const tx = db.transaction("images", "readwrite");
+    tx.objectStore("images").delete(key);
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  });
+}
 async function idbGet(key: string): Promise<string | null> {
   const db = await idb();
   return new Promise((res, rej) => {
@@ -267,7 +285,33 @@ export const localAssetClient: AssetClient = {
       }),
     );
   },
+  async remove(assetId) {
+    const usage = localImageUsage(assetId);
+    if (imageIsUsed(usage)) throw new ApiError(409, imageInUseMessage(usage));
+    await idbDelete(assetId);
+    localCache.delete(assetId);
+  },
 };
+
+/** Where a picture kept in this browser is still used: this browser's emails, templates and saved blocks. */
+function localImageUsage(assetId: string): ImageUsage {
+  const named = (list: unknown[], pick: (item: Record<string, unknown>) => unknown, fallback: string) =>
+    list.filter((item) => usesImage(item, assetId)).map((item) => String((item && typeof item === "object" && pick(item as Record<string, unknown>)) || fallback));
+  const blocks: unknown[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith("otb.saved-modules.v1:")) blocks.push(...readJsonList<unknown>(key));
+    }
+  } catch {
+    // Storage that cannot be read holds nothing that could be using the picture.
+  }
+  return {
+    emails: named(Object.values(readAll()), (d) => d.title, "Untitled email"),
+    templates: named(readJsonList<unknown>(TEMPLATES_KEY), (t) => t.name, "Untitled template"),
+    blocks: [...new Set(named(blocks, (b) => b.name, "Saved block"))],
+  };
+}
 
 /** Demo export: images are in the browser, so their bytes go with the request. */
 export async function localImagesForExport(doc: EmailDocument): Promise<Record<string, string>> {
@@ -316,9 +360,6 @@ export const apiTemplateStore: TemplateStore = {
     await api("/api/templates/hidden-defaults", { method: "DELETE" });
   },
 };
-
-const TEMPLATES_KEY = "otb.templates.v1";
-const HIDDEN_TEMPLATES_KEY = "otb.templates.hidden.v1";
 
 function readJsonList<T>(key: string): T[] {
   try {

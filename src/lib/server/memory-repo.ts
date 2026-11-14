@@ -88,6 +88,12 @@ export class MemoryAssetRepo implements AssetRepo {
       }),
     );
   }
+  async remove(scope: Scope, id: string) {
+    const r = this.rows.get(id);
+    if (!r || !inScope(scope, r.record)) return false;
+    this.rows.delete(id);
+    return true;
+  }
 }
 
 export class MemorySavedModuleRepo implements SavedModuleRepo {

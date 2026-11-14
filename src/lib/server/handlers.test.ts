@@ -11,7 +11,7 @@ import { validateDocument } from "@/lib/email/registry";
 import { newEmailDocument } from "@/lib/email/starter";
 import { createEmail, deleteEmail, exportForDemo, exportForUser, getEmail, listAssets, listEmails, readAsset, updateEmail, uploadAsset, type HandlerContext } from "./handlers";
 import { MemoryAiUsageRepo, MemoryAssetRepo, MemoryEmailRepo, MemoryPresenceRepo, MemorySavedModuleRepo, MemoryTemplateRepo } from "./memory-repo";
-import { leavePresence, touchPresence } from "./handlers";
+import { deleteAsset, leavePresence, touchPresence } from "./handlers";
 import { copyToLibrary, takeAiRequest, type CopyTarget } from "./handlers";
 import { AI_DAILY_LIMIT } from "@/lib/limits";
 import { PRESENCE_WINDOW_MS } from "./repo";
@@ -568,5 +568,66 @@ describe("AI requests per day", () => {
     expect((await takeAiRequest(as(null)))?.status).toBe(401);
     const broken = { ...as("alice"), aiUsage: { take: async () => { throw new Error("database down"); } } };
     expect((await takeAiRequest(broken))?.status).toBe(503);
+  });
+});
+
+describe("deleting images", () => {
+  const sizeOf = async (ctx: HandlerContext) => ((await (await listAssets(ctx)).json()) as { assets: unknown[] }).assets.length;
+
+  it("deletes an unused image, frees its space, and only for its owner", async () => {
+    const { as } = setup();
+    const id = await uploadFor(as("alice"));
+    expect((await deleteAsset(as(null), id)).status).toBe(401);
+    expect((await deleteAsset(as("bob"), id)).status).toBe(404);
+    expect((await deleteAsset(as("alice"), "not-an-id")).status).toBe(404);
+    expect(await sizeOf(as("alice"))).toBe(1);
+    expect((await deleteAsset(as("alice"), id)).status).toBe(200);
+    expect(await sizeOf(as("alice"))).toBe(0);
+    expect((await readAsset(as("alice"), id)).status).toBe(404);
+    expect((await deleteAsset(as("alice"), id)).status).toBe(404);
+  });
+
+  it("refuses while an email uses the image and says which one; works once the email is gone", async () => {
+    const { as } = setup();
+    const id = await uploadFor(as("alice"));
+    const doc = withAsset(sampleEmailDocument("harbor-pine"), id);
+    doc.title = "Town hall invite";
+    const { email } = (await (await createEmail(as("alice"), { document: doc })).json()) as { email: { id: string } };
+    const res = await deleteAsset(as("alice"), id);
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: string; details: { emails: string[] } };
+    expect(body.error).toContain("1 email (“Town hall invite”)");
+    expect(body.details.emails).toEqual(["Town hall invite"]);
+    expect((await readAsset(as("alice"), id)).status).toBe(200);
+    expect((await deleteEmail(as("alice"), email.id)).status).toBe(200);
+    expect((await deleteAsset(as("alice"), id)).status).toBe(200);
+  });
+
+  it("refuses while a template or a saved block uses the image", async () => {
+    const { as } = setup();
+    const id = await uploadFor(as("alice"));
+    const doc = withAsset(sampleEmailDocument("harbor-pine"), id);
+    const { template } = (await (await createTemplate(as("alice"), { name: "Monthly update", document: doc })).json()) as { template: { id: string } };
+    let res = await deleteAsset(as("alice"), id);
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: string }).error).toContain("1 template (“Monthly update”)");
+    expect((await deleteTemplate(as("alice"), template.id)).status).toBe(200);
+
+    const hero = doc.modules.find((m) => m.type === "hero")!;
+    const blockId = crypto.randomUUID();
+    expect((await createSavedModule(as("alice"), { id: blockId, name: "Top picture", brandId: doc.brandId, module: hero })).status).toBe(201);
+    res = await deleteAsset(as("alice"), id);
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: string }).error).toContain("1 saved block (“Top picture”)");
+    expect((await deleteSavedModule(as("alice"), blockId)).status).toBe(200);
+    expect((await deleteAsset(as("alice"), id)).status).toBe(200);
+  });
+
+  it("keeps a team space's images apart from a person's own", async () => {
+    const { as } = setup();
+    const teamImage = await uploadFor(as("alice", "org_1"));
+    expect((await deleteAsset(as("alice"), teamImage)).status).toBe(404);
+    expect((await deleteAsset(as("bob", "org_2"), teamImage)).status).toBe(404);
+    expect((await deleteAsset(as("bob", "org_1"), teamImage)).status).toBe(200);
   });
 });

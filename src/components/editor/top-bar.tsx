@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Redo2, Undo2, Download, AlertTriangle, Check, LayoutTemplate, LibraryBig, Loader2 } from "lucide-react";
+import { Redo2, Undo2, Download, AlertTriangle, Check, LayoutTemplate, LibraryBig, LifeBuoy, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useConfig } from "@/lib/client/config";
 import { storesFor } from "@/lib/client/stores";
@@ -116,6 +116,10 @@ export function TopBar({ onRetrySave, saveNow }: { onRetrySave: () => void; save
         <Button variant="outline" size="sm" disabled={leaving} onClick={toLibrary} title="Your emails, templates, saved blocks and images">
           {leaving ? <Loader2 className="animate-spin" /> : <LibraryBig />} Library
         </Button>
+        {/* Opens in a new tab so the email being worked on stays open. */}
+        <a href="/support" target="_blank" rel="noopener" aria-label="Get help" title="Get help or report a problem" className="inline-flex size-8 shrink-0 items-center justify-center text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900">
+          <LifeBuoy className="size-4" />
+        </a>
         <Button size="sm" onClick={() => setExportOpen(true)}>
           <Download /> Download
         </Button>

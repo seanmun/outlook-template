@@ -9,7 +9,7 @@ export default function PrivacyPage() {
   return (
     <LegalPage
       title="Privacy"
-      updated="10 November 2026"
+      updated="13 November 2026"
       intro="The short version: you can use this site without an account, and when you do, the emails you build stay in your own browser. This page says exactly what leaves your device, when, and where it goes."
     >
       <section>
@@ -29,7 +29,8 @@ export default function PrivacyPage() {
             <strong>Exporting sends that one email to our server</strong> so it can be turned into an Outlook template file. It is processed for the download and not kept.
           </li>
           <li>
-            <strong>No advertising trackers and no analytics scripts.</strong> One preference (sound effects on or off) is remembered in your browser.
+            <strong>No advertising trackers.</strong> Page visits are counted with Vercel Web Analytics, which uses no cookies and does not identify you: it records the page, the site you came from, and your
+            country, browser and device type. One preference (sound effects on or off) is remembered in your browser.
           </li>
         </ul>
       </section>
@@ -48,6 +49,14 @@ export default function PrivacyPage() {
             <strong>AI features send content to Anthropic.</strong> When you ask the AI to build or change an email, the email&apos;s content, your instruction, and any design comp or images you attach to that request are sent to Anthropic&apos;s API to produce the result. Don&apos;t include anything in an AI request that you are not allowed to share with a third-party processor.
           </li>
         </ul>
+      </section>
+
+      <section>
+        <h2>If you ask for support</h2>
+        <p>
+          The <Link href="/support">support form</Link> sends your message, your email address, any screenshots you attach and the name of your browser to the maintainer through Telegram, a messaging service. It is used only to
+          look into the problem and reply to you.
+        </p>
       </section>
 
       <section>

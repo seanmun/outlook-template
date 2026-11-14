@@ -65,6 +65,8 @@ export interface AssetRepo {
   list(scope: Scope): Promise<AssetRecord[]>;
   /** Returns the subset of ids that exist in this scope. */
   existing(scope: Scope, ids: string[]): Promise<Set<string>>;
+  /** Deletes the image and its file. False when it is not in this scope. */
+  remove(scope: Scope, id: string): Promise<boolean>;
 }
 
 export interface SavedModuleRecord {

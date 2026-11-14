@@ -38,6 +38,11 @@ export function SiteFooter() {
                 Templates
               </Link>
             </li>
+            <li>
+              <Link href="/support" className={link}>
+                Support
+              </Link>
+            </li>
           </ul>
         </nav>
         <nav aria-label="Guides">
@@ -80,6 +85,9 @@ export function SiteFooter() {
             </Link>
             <Link href="/terms" className="hover:text-neutral-300">
               Terms
+            </Link>
+            <Link href="/support" className="hover:text-neutral-300">
+              Support
             </Link>
             <span className="sm:ml-auto">
               Project maintained by{" "}

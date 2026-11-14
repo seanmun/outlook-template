@@ -15,6 +15,7 @@ import { MAX_UPLOAD_BYTES, readImageInfo } from "./image-info";
 import { UUID_RE, type AiUsageRepo, type AssetRepo, type EmailRepo, type PresenceRepo, type SavedModuleRepo, type Scope, type TemplateRepo } from "./repo";
 import { AI_DAILY_LIMIT, formatMb, limitsFor } from "@/lib/limits";
 import { DEFAULT_TEMPLATE_IDS } from "@/lib/email/templates";
+import { imageInUseMessage, imageIsUsed, usesImage, type ImageUsage } from "@/lib/image-usage";
 
 export interface HandlerContext {
   userId: string | null;
@@ -354,6 +355,33 @@ export async function listAssets(ctx: HandlerContext) {
   if (!ctx.userId) return unauthorized();
   const rows = await ctx.assets.list(scopeOf({ ...ctx, userId: ctx.userId }));
   return json({ assets: rows.map((r) => ({ id: r.id, width: r.width, height: r.height, byteSize: r.byteSize, originalFilename: r.originalFilename, createdAt: r.createdAt })) });
+}
+
+/** Every email, template and saved block in this space that still holds the picture. */
+async function whereImageIsUsed(ctx: HandlerContext, scope: Scope, assetId: string): Promise<ImageUsage> {
+  const [summaries, templates, blocks] = await Promise.all([ctx.emails.list(scope), ctx.templates.list(scope), ctx.savedModules.list(scope)]);
+  const emails: string[] = [];
+  // Emails are read a few at a time so a full team space does not open hundreds of connections at once.
+  for (let i = 0; i < summaries.length; i += 20) {
+    const batch = await Promise.all(summaries.slice(i, i + 20).map((e) => ctx.emails.get(scope, e.id)));
+    for (const e of batch) if (e && usesImage(e.document, assetId)) emails.push(e.title || "Untitled email");
+  }
+  return {
+    emails,
+    templates: templates.filter((t) => usesImage(t.document, assetId)).map((t) => t.name),
+    blocks: blocks.filter((b) => usesImage(b.module, assetId)).map((b) => b.name),
+  };
+}
+
+/** Deletes an image from the Library. Refused while anything still uses it, so no email is left with a missing picture. */
+export async function deleteAsset(ctx: HandlerContext, id: string) {
+  if (!ctx.userId) return unauthorized();
+  if (!UUID_RE.test(id)) return notFound();
+  const scope = scopeOf({ ...ctx, userId: ctx.userId });
+  if (!(await ctx.assets.get(scope, id))) return notFound();
+  const usage = await whereImageIsUsed(ctx, scope, id);
+  if (imageIsUsed(usage)) return errorResponse(409, imageInUseMessage(usage), usage);
+  return (await ctx.assets.remove(scope, id)) ? json({ ok: true }) : notFound();
 }
 
 export async function readAsset(ctx: HandlerContext, id: string): Promise<Response> {

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Bungee, Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import { Analytics } from "@vercel/analytics/next";
 import { auth } from "@clerk/nextjs/server";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -61,6 +62,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${bungee.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-neutral-50 text-neutral-900">
         {production ? <ClerkProvider localization={CLERK_WORDS}>{app}</ClerkProvider> : app}
+        {/* Page-view counts only: no cookies, nothing that identifies a visitor. Sends nothing outside Vercel. */}
+        <Analytics />
       </body>
     </html>
   );

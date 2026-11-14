@@ -506,6 +506,19 @@ export function ImagesCard({ preview = false }: { preview?: boolean }) {
     for (const p of problems) toast.error(p);
   }
 
+  async function remove(img: LibraryImage) {
+    if (img.src.kind !== "asset") return;
+    if (!confirm(`Delete the image "${img.name}"? This cannot be undone.`)) return;
+    try {
+      await assets.remove(img.src.assetId);
+      toast.success("Image deleted.");
+      await load();
+    } catch (e) {
+      // An image still used somewhere is refused, and the message says where.
+      toast.error((e as Error).message, { duration: 10000 });
+    }
+  }
+
   const shown = preview ? images?.slice(0, 4) : images;
   return (
     <Card
@@ -544,6 +557,9 @@ export function ImagesCard({ preview = false }: { preview?: boolean }) {
               {!preview && img.src.kind === "asset" && (
                 <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100 has-[[data-popup-open]]:opacity-100 [@media(hover:none)]:opacity-100">
                   <CopyTo kind="image" id={img.src.assetId} name={img.name} />
+                  <Button variant="outline" size="icon" className="bg-white" aria-label={`Delete image ${img.name}`} title="Delete image" onClick={() => remove(img)}>
+                    <Trash2 />
+                  </Button>
                 </div>
               )}
               {/* eslint-disable-next-line @next/next/no-img-element -- private, per-user images served by our own API or held in the browser */}
