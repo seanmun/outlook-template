@@ -3,6 +3,7 @@ import { assembleWithAi } from "@/lib/ai/assemble";
 import { parseReference } from "@/lib/ai/reference";
 import type { OfferedImage } from "@/lib/ai/run";
 import { validateDocument } from "@/lib/email/registry";
+import { alertError } from "@/lib/server/alerts";
 import { aiAvailability, appMode } from "@/lib/server/config";
 import { productionContext, readJson } from "@/lib/server/context";
 import { errorResponse, json, takeAiRequest, type HandlerContext } from "@/lib/server/handlers";
@@ -99,7 +100,10 @@ export async function POST(req: Request) {
     reference: ref?.ok ? ref.reference : undefined,
     images,
   });
-  if (!result.ok) return errorResponse(422, result.error, result.details);
+  if (!result.ok) {
+    await alertError({ kind: "ai", message: result.error, where: "AI building an email" });
+    return errorResponse(422, result.error, result.details);
+  }
   // The client replays operations if the user edited meanwhile, so it needs the same image refs.
   return json({ ...result, images: images.map(({ ref, src, width, height }) => ({ ref, src, width, height })) });
 }

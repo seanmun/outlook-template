@@ -15,6 +15,7 @@ import { MAX_UPLOAD_BYTES, readImageInfo } from "./image-info";
 import { UUID_RE, type AiUsageRepo, type AssetRepo, type EmailRepo, type PresenceRepo, type SavedModuleRepo, type Scope, type TemplateRepo } from "./repo";
 import { AI_DAILY_LIMIT, formatMb, limitsFor } from "@/lib/limits";
 import { DEFAULT_TEMPLATE_IDS } from "@/lib/email/templates";
+import { alertError, errorText } from "./alerts";
 import { imageInUseMessage, imageIsUsed, usesImage, type ImageUsage } from "@/lib/image-usage";
 
 export interface HandlerContext {
@@ -122,6 +123,7 @@ export async function takeAiRequest(ctx: HandlerContext): Promise<Response | nul
     left = await ctx.aiUsage.take(ctx.userId, AI_DAILY_LIMIT);
   } catch (e) {
     console.error("AI usage could not be counted", e);
+    await alertError({ kind: "ai", message: `AI requests could not be counted, so AI is refusing everyone: ${errorText(e)}`, where: "Counting AI requests" });
     return errorResponse(503, "AI is not available right now. Everything else works as normal.");
   }
   if (left < 0) return errorResponse(429, `You have used today\u2019s ${AI_DAILY_LIMIT} AI requests. You get more tomorrow, and everything else still works.`);
@@ -403,12 +405,13 @@ export async function readAsset(ctx: HandlerContext, id: string): Promise<Respon
 
 const FormatsSchema = z.array(z.enum(["oft", "emltpl", "html"])).min(1).max(3);
 
-function exportErrorResponse(err: unknown): Response {
+async function exportErrorResponse(err: unknown): Promise<Response> {
   if (err instanceof ExporterUnavailableError) return errorResponse(422, err.message);
   if (err instanceof MissingImageError) return errorResponse(422, err.message);
   if (err instanceof CfbTooLargeError) return errorResponse(413, err.message);
   if (err instanceof ExportFailedError) return errorResponse(500, err.message);
   console.error("export failed", err);
+  await alertError({ kind: "download", message: errorText(err), where: "Building the download" });
   return errorResponse(500, "Export failed unexpectedly.");
 }
 
