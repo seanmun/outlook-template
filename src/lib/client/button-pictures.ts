@@ -10,7 +10,6 @@ export interface ButtonPictureUpload {
 
 interface ButtonSettings {
   radius?: number;
-  backgroundColor: string;
   buttonColor: string;
   buttonTextColor: string;
   fontSize: number;
@@ -30,7 +29,8 @@ export function roundedButtons(doc: EmailDocument) {
 /**
  * Draws each rounded button as a picture, for the Windows template: classic Outlook cannot round a
  * button any other way. The picture matches the code-drawn button: same font, sizes and colours,
- * with the block's own background behind the corners so it needs no transparency.
+ * with see-through corners. A colour painted behind the corners stays light when Outlook's dark
+ * mode turns the email dark, and shows as white tips around the button (seen in test kit 4).
  */
 export function buttonPicturesForExport(doc: EmailDocument): Record<string, ButtonPictureUpload> {
   const out: Record<string, ButtonPictureUpload> = {};
@@ -49,8 +49,6 @@ export function buttonPicturesForExport(doc: EmailDocument): Record<string, Butt
     canvas.width = width * SCALE;
     canvas.height = height * SCALE;
     ctx.scale(SCALE, SCALE);
-    ctx.fillStyle = s.backgroundColor;
-    ctx.fillRect(0, 0, width, height);
     ctx.fillStyle = s.buttonColor;
     ctx.beginPath();
     ctx.roundRect(0, 0, width, height, Math.min(Number(s.radius), height / 2, width / 2));
