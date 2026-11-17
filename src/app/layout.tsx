@@ -3,6 +3,7 @@ import { Bungee, Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Analytics } from "@vercel/analytics/next";
 import { auth } from "@clerk/nextjs/server";
+import { unstable_rethrow } from "next/navigation";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConfigProvider, type ServerConfig } from "@/lib/client/config";
@@ -44,10 +45,25 @@ const CLERK_WORDS = {
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Who is signed in, or null. A request for a missing file (say /wp-login.php or /old-logo.png) skips
+ * the sign-in check in proxy.ts, and Clerk then refuses to answer. The "page not found" page needs
+ * no account, so that visitor is simply treated as signed out instead of crashing the page.
+ */
+async function signedInSession() {
+  try {
+    return await auth();
+  } catch (err) {
+    // Next.js's own signals (redirects and the like) must pass through untouched.
+    unstable_rethrow(err);
+    return null;
+  }
+}
+
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const config: ServerConfig = { ...publicConfig(), exporters: exporterStatuses() };
   const production = config.mode === "production";
-  const session = production ? await auth() : null;
+  const session = production ? await signedInSession() : null;
   const userId = session?.userId ?? null;
   const workspaceId = TEAMS_ENABLED ? (session?.orgId ?? null) : null;
   const app = (
