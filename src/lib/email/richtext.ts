@@ -102,15 +102,20 @@ export function renderRichText(doc: RichText, s: RichTextStyle): string {
         return `<p style="${textStyle(s, gap)}">${renderInline(block.content, s)}</p>`;
       }
       // Lists: zero top/bottom margin and padding by default (longhands so Outlook doesn't apply its own);
-      // the left margin provides the bullet indent.
+      // the left margin provides the bullet indent. The space after the list sits on its last item,
+      // the same way the space between items does.
+      // Items are always left-aligned: centred bullet text leaves the bullets stranded at the left edge
+      // with ragged text far away from them. In a centred or right-aligned block the list as a whole is
+      // moved instead (see below), so the bullets line up and still sit with the rest of the copy.
+      const itemStyle: RichTextStyle = { ...s, align: "left" };
       const items = block.content
         .map((item, j) => {
           const inner = item.content.map((p) => renderInline(p.content, s)).join("<br>");
-          const itemGap = j === block.content.length - 1 ? 0 : Math.round(s.paragraphGap / 2);
-          return `<li style="${textStyle(s, itemGap)}">${inner}</li>`;
+          const itemGap = j === block.content.length - 1 ? gap : Math.round(s.paragraphGap / 2);
+          return `<li style="${textStyle(itemStyle, itemGap)}">${inner}</li>`;
         })
         .join("");
-      return `<ul style="${style({
+      const list = `<ul style="${style({
         "margin-top": "0",
         "margin-bottom": "0",
         "margin-right": "0",
@@ -122,7 +127,17 @@ export function renderRichText(doc: RichText, s: RichTextStyle): string {
         "font-family": s.fontFamily,
         "font-size": s.fontSize,
         color: s.color,
+        "text-align": "left",
       })}">${items}</ul>`;
+      if (s.align === "left") return list;
+      // A table only as wide as its longest item, placed in the middle (or at the right) of a full-width
+      // row. Tables are the one way to do this that Outlook's Word engine follows. The outer row keeps
+      // the copy after the list from wrapping around it.
+      const table = 'role="presentation" cellpadding="0" cellspacing="0" border="0"';
+      return `<table ${table} width="100%" style="width:100%;border-collapse:collapse;"><tr><td align="${s.align}" style="text-align:${s.align};"><table ${table} style="${style({
+        margin: s.align === "center" ? "0 auto" : "0 0 0 auto",
+        "border-collapse": "collapse",
+      })}"><tr><td align="left" style="text-align:left;">${list}</td></tr></table></td></tr></table>`;
     })
     .join("");
 }
