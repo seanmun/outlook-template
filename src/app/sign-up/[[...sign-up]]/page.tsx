@@ -2,9 +2,13 @@ import { SignUp } from "@clerk/nextjs";
 import { appMode } from "@/lib/server/config";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
+import { isAccountFreeHost } from "@/lib/site";
 import { auth } from "@clerk/nextjs/server";
 
 export default async function SignUpPage() {
+  // No accounts on the backup address: send anyone who lands here back to the builder.
+  if (isAccountFreeHost((await headers()).get("host"))) redirect("/");
   if (appMode() !== "production") {
     return (
       <main className="mx-auto max-w-md p-10 text-sm">

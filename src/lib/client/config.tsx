@@ -9,6 +9,8 @@ export interface ServerConfig {
   missing: string[];
   ai: { enabled: boolean; reason?: string; model?: string };
   exporters: ExporterStatus[];
+  /** This address has no accounts at all (the vercel.app backup), so sign-in and AI are never offered. */
+  accountFree?: boolean;
 }
 
 export interface ClientConfig extends ServerConfig {

@@ -4,12 +4,13 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { Analytics } from "@vercel/analytics/next";
 import { auth } from "@clerk/nextjs/server";
 import { unstable_rethrow } from "next/navigation";
+import { headers } from "next/headers";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConfigProvider, type ServerConfig } from "@/lib/client/config";
 import { publicConfig } from "@/lib/server/config";
 import { exporterStatuses } from "@/lib/export/exporters";
-import { SITE_URL } from "@/lib/site";
+import { isAccountFreeHost, SITE_URL } from "@/lib/site";
 import { TEAMS_ENABLED } from "@/lib/teams";
 import { pageMetadata, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE } from "@/lib/seo";
 import "./globals.css";
@@ -61,7 +62,10 @@ async function signedInSession() {
 }
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const config: ServerConfig = { ...publicConfig(), exporters: exporterStatuses() };
+  const accountFree = isAccountFreeHost((await headers()).get("host"));
+  const config: ServerConfig = accountFree
+    ? { mode: "demo", missing: [], accountFree: true, ai: { enabled: false, reason: "AI needs an account, and accounts are not available on this address. Everything else works here." }, exporters: exporterStatuses() }
+    : { ...publicConfig(), exporters: exporterStatuses() };
   const production = config.mode === "production";
   const session = production ? await signedInSession() : null;
   const userId = session?.userId ?? null;

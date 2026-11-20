@@ -1,5 +1,7 @@
 import "server-only";
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
+import { isAccountFreeHost } from "@/lib/site";
 import { appMode } from "./config";
 import { TEAMS_ENABLED } from "@/lib/teams";
 import { errorResponse, type HandlerContext } from "./handlers";
@@ -10,7 +12,9 @@ export async function productionContext(): Promise<HandlerContext | Response> {
   if (appMode() !== "production") {
     return errorResponse(404, "Server persistence is not configured; the app is running in local demo mode.");
   }
-  const { userId, orgId, getToken } = await auth();
+  // On the backup address there are no accounts and the sign-in layer does not run, so everyone is signed out.
+  const signedOut = { userId: null, orgId: null, getToken: async () => null };
+  const { userId, orgId, getToken } = isAccountFreeHost((await headers()).get("host")) ? signedOut : await auth();
   const db = supabaseForUser(() => getToken());
   // The team space is whichever organization the person's Clerk session is currently in. Clerk only
   // puts an organization in a session for its members, and the database checks the same id again.

@@ -99,7 +99,7 @@ function DescribeIt() {
                 to use AI. It is free. Everything below works without an account.
               </>
             ) : (
-              "AI drafting is not switched on yet. It is coming soon. For now, start from a template below."
+              config.accountFree ? "AI needs an account, and accounts are not available on this address. Start from a template below." : "AI drafting is not switched on yet. It is coming soon. For now, start from a template below."
             )}
           </p>
           <Button type="submit" disabled={!on || starting || nothingToSend}>

@@ -1,5 +1,6 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
 import { NextResponse, type NextRequest, type NextFetchEvent } from "next/server";
+import { isAccountFreeHost } from "@/lib/site";
 
 const clerkConfigured = !!(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY);
 const supabaseConfigured = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
@@ -11,6 +12,8 @@ const withClerk = clerkMiddleware();
 export default function proxy(req: NextRequest, event: NextFetchEvent) {
   // Demo mode (Clerk or Supabase missing): no auth layer at all.
   if (!clerkConfigured || !supabaseConfigured) return NextResponse.next();
+  // The backup address has no accounts (see isAccountFreeHost), so the sign-in layer stays out of the way there.
+  if (isAccountFreeHost(req.headers.get("host"))) return NextResponse.next();
   return withClerk(req, event);
 }
 
