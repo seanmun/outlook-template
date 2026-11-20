@@ -9,7 +9,7 @@ export default function PrivacyPage() {
   return (
     <LegalPage
       title="Privacy"
-      updated="13 November 2026"
+      updated="20 November 2026"
       intro="The short version: you can use this site without an account, and when you do, the emails you build stay in your own browser. This page says exactly what leaves your device, when, and where it goes."
     >
       <section>
@@ -29,6 +29,12 @@ export default function PrivacyPage() {
             <strong>Exporting sends that one email to our server</strong> so it can be turned into an Outlook template file. It is processed for the download and not kept.
           </li>
           <li>
+            <strong>Using AI without an account sends that request to Anthropic.</strong> While AI is open to visitors without an account, asking it to build or change an email sends the email&apos;s content, your
+            instruction, any design comp you attach, and the names and sizes of your pictures (not the pictures themselves) to Anthropic&apos;s API to produce the result. Don&apos;t include anything you are not allowed
+            to share with a third-party processor. To keep a daily limit, one cookie holding a random id is set in your browser, and a scrambled form of your network address is counted for that day and deleted the
+            next. Neither is used for anything else.
+          </li>
+          <li>
             <strong>No advertising trackers.</strong> Page visits are counted with Vercel Web Analytics, which uses no cookies and does not identify you: it records the page, the site you came from, and your
             country, browser and device type. One preference (sound effects on or off) is remembered in your browser.
           </li>
@@ -40,7 +46,7 @@ export default function PrivacyPage() {
         <p>Accounts are optional and may not be available at all times. When you sign in:</p>
         <ul>
           <li>
-            <strong>Sign-in is handled by Clerk.</strong> Clerk stores your email address and manages your session. When an account is created, the maintainer is told the new account&apos;s email address through Telegram, a messaging service. While accounts are switched on, Clerk&apos;s sign-in script loads on the site and sets the cookies needed for signing in, including for visitors who have not signed in yet.
+            <strong>Sign-in is handled by Clerk.</strong> Clerk stores your email address and manages your session. When a sign-up email is sent and when an account is created, the maintainer is told the email address through Telegram, a messaging service, so sign-up problems can be spotted. While accounts are switched on, Clerk&apos;s sign-in script loads on the site and sets the cookies needed for signing in, including for visitors who have not signed in yet.
           </li>
           <li>
             <strong>Your drafts and uploaded images are stored on Supabase,</strong> so you can reach them from any device. Only your account can read them.

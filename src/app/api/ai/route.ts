@@ -6,7 +6,9 @@ import { validateDocument } from "@/lib/email/registry";
 import { alertError } from "@/lib/server/alerts";
 import { aiAvailability, appMode } from "@/lib/server/config";
 import { productionContext, readJson } from "@/lib/server/context";
-import { errorResponse, json, takeAiRequest, type HandlerContext } from "@/lib/server/handlers";
+import { guestFrom, withGuestCookie, type Guest } from "@/lib/server/guest";
+import { errorResponse, json, takeAiRequest, takeGuestAiRequest, type HandlerContext } from "@/lib/server/handlers";
+import { GUEST_AI_ENABLED } from "@/lib/limits";
 import { UUID_RE } from "@/lib/server/repo";
 
 export const maxDuration = 120;
@@ -73,10 +75,15 @@ export async function POST(req: Request) {
   const ai = aiAvailability();
   if (!ai.enabled) return errorResponse(503, ai.reason ?? "AI is not available.");
   let ctx: HandlerContext | null = null;
+  // A visitor without an account: allowed while guest AI is switched on, and counted separately.
+  let guest: Guest | null = null;
   if (appMode() === "production") {
     const c = await productionContext();
     if (c instanceof Response) return c;
-    if (!c.userId) return errorResponse(401, "Sign in required.");
+    if (!c.userId) {
+      if (!GUEST_AI_ENABLED) return errorResponse(401, "Sign in required.");
+      guest = guestFrom(req);
+    }
     ctx = c;
   }
   const parsed = Body.safeParse(await readJson(req));
@@ -89,8 +96,8 @@ export async function POST(req: Request) {
   if (images instanceof Response) return images;
   // Last thing before the model is called, so a request that was never going to run does not use up the day's allowance.
   if (ctx) {
-    const refused = await takeAiRequest(ctx);
-    if (refused) return refused;
+    const refused = guest ? await takeGuestAiRequest(ctx, guest.keys) : await takeAiRequest(ctx);
+    if (refused) return withGuestCookie(refused, guest);
   }
 
   const result = await assembleWithAi({
@@ -102,8 +109,8 @@ export async function POST(req: Request) {
   });
   if (!result.ok) {
     await alertError({ kind: "ai", message: result.error, where: "AI building an email" });
-    return errorResponse(422, result.error, result.details);
+    return withGuestCookie(errorResponse(422, result.error, result.details), guest);
   }
   // The client replays operations if the user edited meanwhile, so it needs the same image refs.
-  return json({ ...result, images: images.map(({ ref, src, width, height }) => ({ ref, src, width, height })) });
+  return withGuestCookie(json({ ...result, images: images.map(({ ref, src, width, height }) => ({ ref, src, width, height })) }), guest);
 }

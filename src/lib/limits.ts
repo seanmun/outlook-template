@@ -32,6 +32,16 @@ export function limitsFor(team: boolean): SpaceLimits {
  */
 export const AI_DAILY_LIMIT = 30;
 
+/**
+ * AI for visitors without an account. Switched on for the launch so people can try it straight
+ * away, including on the backup address where nobody can sign in. Set to false to go back to
+ * "sign in to use AI". The ceilings below are per day (midnight UTC) and are what keeps the bill
+ * bounded: one browser, one network address (a whole office often shares one), and all guests
+ * together. When the last one is reached the maintainer is told and guests are asked to sign in.
+ */
+export const GUEST_AI_ENABLED = true;
+export const GUEST_AI_LIMITS = { perBrowser: 5, perNetwork: 20, total: 200 } as const;
+
 /** "12.5 MB" (or "340 KB" for small amounts), for showing sizes to people. */
 export function formatMb(bytes: number): string {
   if (bytes <= 0) return "0 MB";

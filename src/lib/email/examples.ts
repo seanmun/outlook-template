@@ -80,44 +80,6 @@ function sideBySide(ref: string, left: readonly [string, string], right: readonl
 
 export const EXAMPLES: EmailExample[] = [
   {
-    // For the day the email system itself was the news. Like every example, the details are invented
-    // sample copy for the sender to replace with what actually happened at their company.
-    id: "outage-update",
-    name: "Outage update",
-    blurb: "Email is back: what happened, what to do.",
-    brandId: "plain",
-    build: () =>
-      build("plain", "Example: outage update", "Email is working again: what happened on November 12", [
-        add("header"),
-        add("hero", { image: { alt: "An envelope with a green tick: email is working again" } }),
-        add(
-          "text",
-          {
-            headline: "Email is working again",
-            body: "Outlook was down for a lot of organisations on Thursday, November 12, ours included. It is back now.\n\n**What happened:** Our email provider had a widespread outage. For us, email was unavailable from about 9:00 until 13:30.",
-          },
-          { align: "left" },
-        ),
-        add("text", { headline: "What to do now", body: "" }, { align: "left", headlineSize: 20, padding: { top: 8, right: 40, bottom: 0, left: 40 } }),
-        add("columns", null, { layout: "1-1-1" }, { ref: "steps" }),
-        ...(
-          [
-            ["Restart Outlook", "If it still looks stuck, close it and open it again.", "Restart icon"],
-            ["Check your Outbox", "Anything waiting there will send on its own.", "Outbox icon"],
-            ["Resend if unsure", "Send urgent messages again if you can\u2019t tell they went out.", "Send icon"],
-          ] as const
-        ).flatMap(([title, body, alt], column) => [
-          add("hero", { image: { alt, width: 72 } }, { padding: { top: 0, right: 0, bottom: 8, left: 0 } }, { parentId: "steps", column }),
-          add("text", { headline: title, body }, { align: "center", headlineSize: 16, padding: { top: 0, right: 0, bottom: 0, left: 0 } }, { parentId: "steps", column }),
-        ]),
-        add("text", { headline: "", body: "Still having trouble? Contact the service desk." }, { align: "left" }),
-        // Microsoft's public service health page for Microsoft 365, which covers Outlook.
-        add("cta", { label: "Check service status", url: "https://status.cloud.microsoft/m365" }, { align: "left" }),
-        add("divider"),
-        add("footer", { body: "Your company · IT Service Desk\n\nCall the service desk or reply to this email." }),
-      ], ["outage-banner", "outage-step-restart", "outage-step-outbox", "outage-step-resend"]),
-  },
-  {
     id: "town-hall",
     name: "Event invite",
     blurb: "Banner, short pitch, one clear button.",

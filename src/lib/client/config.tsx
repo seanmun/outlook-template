@@ -2,6 +2,7 @@
 import { createContext, useContext, useMemo } from "react";
 import { useAuth } from "@clerk/nextjs";
 import type { ExporterStatus } from "@/lib/export/exporters";
+import { GUEST_AI_ENABLED } from "@/lib/limits";
 import { TEAMS_ENABLED } from "@/lib/teams";
 
 export interface ServerConfig {
@@ -62,9 +63,10 @@ function AuthAwareConfig({ server, serverUserId, serverWorkspaceId, children }: 
             userId: null,
             workspaceId: null,
             spaceKey: "browser",
-            aiNeedsSignIn: server.ai.enabled,
+            // While guest AI is switched on, a visitor without an account can use AI too (with a small daily allowance).
+            aiNeedsSignIn: server.ai.enabled && !GUEST_AI_ENABLED,
             ready: true,
-            ai: server.ai.enabled ? { enabled: false, reason: "Sign in to use AI. Everything else works without an account." } : server.ai,
+            ai: server.ai.enabled && !GUEST_AI_ENABLED ? { enabled: false, reason: "Sign in to use AI. Everything else works without an account." } : server.ai,
           },
     [server, userId, workspaceId],
   );

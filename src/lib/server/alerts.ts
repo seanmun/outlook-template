@@ -76,6 +76,52 @@ export async function alertSignup(signup: SignupAlert, deps: AlertDeps = {}): Pr
   return send(lines.join("\n"), deps);
 }
 
+/* ---------------- Verification emails ---------------- */
+
+/** The parts of Clerk's "an email was created" report that are safe to pass on. */
+export interface SentEmail {
+  /** Clerk's name for the kind of email, e.g. "verification_code" or "magic_link_sign_up". */
+  slug?: string | null;
+  to?: string | null;
+  /** Set when the email went to someone who already has an account. */
+  userId?: string | null;
+  status?: string | null;
+  /** False when Clerk is set up to leave the sending to us, which nothing here does. */
+  deliveredByClerk?: boolean | null;
+  /** Clerk's reason for refusing to send, e.g. an address that bounced before. */
+  suppressionReason?: string | null;
+}
+
+/**
+ * Tells the group when Clerk sends a sign-up email (the code or link that proves an address), so a
+ * visitor who says "I never got it" can be checked: sent and lost on the way, or never sent at all.
+ * A "new signup" notice follows when they finish. An email Clerk did not send is always reported.
+ *
+ * Emails to people who already have an account (sign-in codes) and invitations are left out, to
+ * keep the group quiet. Only the address and kind are passed on, never the subject or the body:
+ * both can hold the code or link itself.
+ */
+export async function alertVerificationEmail(email: SentEmail, deps: AlertDeps = {}): Promise<boolean> {
+  const slug = (email.slug ?? "").toLowerCase();
+  const notSent = !!email.suppressionReason || email.deliveredByClerk === false || /fail|bounc|reject|suppress/i.test(email.status ?? "");
+  const forSignup = !email.userId && !slug.includes("invitation") && !slug.includes("sign_in");
+  if (!notSent && !forSignup) return false;
+  const lines = [notSent ? "\u26a0\ufe0f OUTLOOKSUCKS EMAIL NOT SENT" : "\ud83d\udce7 OUTLOOKSUCKS SIGN-UP EMAIL SENT", "", `To: ${cut(email.to, 200) || "(no address given)"}`];
+  if (slug) lines.push(`Kind: ${cut(slug, 80)}`);
+  if (email.status) lines.push(`Status: ${cut(email.status, 60)}`);
+  if (email.suppressionReason) lines.push(`Reason: ${cut(email.suppressionReason, 200)}`);
+  if (email.deliveredByClerk === false) lines.push("Clerk is set to not send this email itself.");
+  lines.push("", notSent ? "This person will not get the email." : "A NEW SIGNUP message follows when they finish. If none comes, the email may not have reached them.", "", stamp(deps));
+  return send(lines.join("\n"), deps);
+}
+
+/* ---------------- Guest AI ceiling ---------------- */
+
+/** Tells the group that visitors without an account have used up the day's AI requests. Sent once, by the request that takes the last one. */
+export async function alertGuestAiCap(total: number, deps: AlertDeps = {}): Promise<boolean> {
+  return send(["\u26a0\ufe0f OUTLOOKSUCKS GUEST AI LIMIT REACHED", "", `Visitors without an account have used all ${total} AI requests for today.`, "Until midnight UTC they are asked to create an account. Signed-in people are not affected.", "", stamp(deps)].join("\n"), deps);
+}
+
 /* ---------------- Errors ---------------- */
 
 /** Stops one broken thing from filling the group: the same error once in ten minutes, and a ceiling per hour. */

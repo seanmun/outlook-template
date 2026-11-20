@@ -14,7 +14,7 @@ export function DemoBanner() {
         <Link href="/sign-in" className="underline">
           Sign in
         </Link>{" "}
-        to save to your account and use AI.
+        to save to your account and get more AI requests.
       </div>
     );
   return (

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { AlertLimiter, alertError, alertSignup, errorText, scrub, type AlertDeps } from "./alerts";
+import { AlertLimiter, alertError, alertGuestAiCap, alertSignup, alertVerificationEmail, errorText, scrub, type AlertDeps } from "./alerts";
 
 const TELEGRAM = { token: "123456789:AAH-secret_TOKEN_value_0123456789abcd", chatId: "-100123" };
 
@@ -103,5 +103,43 @@ describe("errorText", () => {
     expect(errorText(new TypeError("not a function"))).toBe("TypeError: not a function");
     expect(errorText("plain")).toBe("plain");
     expect(errorText({ odd: true })).toBe("Unknown error");
+  });
+});
+
+describe("sign-up email notices", () => {
+  it("reports a sign-up email with the address and kind", async () => {
+    const { calls, deps } = setup();
+    expect(await alertVerificationEmail({ slug: "verification_code", to: "pat@example.com", userId: null, status: "queued", deliveredByClerk: true }, deps)).toBe(true);
+    expect(calls[0].text).toContain("OUTLOOKSUCKS SIGN-UP EMAIL SENT");
+    expect(calls[0].text).toContain("To: pat@example.com");
+    expect(calls[0].text).toContain("Kind: verification_code");
+    expect(calls[0].text).toContain("Status: queued");
+  });
+
+  it("stays quiet for sign-in emails, emails to existing accounts, and invitations", async () => {
+    const { calls, deps } = setup();
+    expect(await alertVerificationEmail({ slug: "verification_code", to: "pat@example.com", userId: "user_123", deliveredByClerk: true }, deps)).toBe(false);
+    expect(await alertVerificationEmail({ slug: "magic_link_sign_in", to: "pat@example.com", deliveredByClerk: true }, deps)).toBe(false);
+    expect(await alertVerificationEmail({ slug: "organization_invitation", to: "pat@example.com", deliveredByClerk: true }, deps)).toBe(false);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("always reports an email that was not sent, whoever it was for", async () => {
+    const { calls, deps } = setup();
+    expect(await alertVerificationEmail({ slug: "magic_link_sign_in", to: "pat@example.com", userId: "user_123", deliveredByClerk: true, suppressionReason: "previous hard bounce" }, deps)).toBe(true);
+    expect(await alertVerificationEmail({ slug: "verification_code", to: "lee@example.com", deliveredByClerk: false }, deps)).toBe(true);
+    expect(await alertVerificationEmail({ slug: "organization_invitation", to: "sam@example.com", userId: "user_9", status: "failed", deliveredByClerk: true }, deps)).toBe(true);
+    expect(calls).toHaveLength(3);
+    for (const c of calls) expect(c.text).toContain("OUTLOOKSUCKS EMAIL NOT SENT");
+    expect(calls[0].text).toContain("Reason: previous hard bounce");
+  });
+});
+
+describe("guest AI limit notice", () => {
+  it("tells the group the day's guest AI requests are used up", async () => {
+    const { calls, deps } = setup();
+    expect(await alertGuestAiCap(200, deps)).toBe(true);
+    expect(calls[0].text).toContain("OUTLOOKSUCKS GUEST AI LIMIT REACHED");
+    expect(calls[0].text).toContain("all 200 AI requests");
   });
 });

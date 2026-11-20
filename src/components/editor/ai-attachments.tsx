@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { FileText, ImagePlus, Loader2, ScanSearch, X } from "lucide-react";
 import { toast } from "sonner";
+import { useConfig } from "@/lib/client/config";
 import type { AssetClient } from "@/lib/client/stores";
 import { MAX_REFERENCE_BYTES } from "@/lib/ai/reference";
 
@@ -83,6 +84,7 @@ export function AiAttachments(props: {
   onImages: (update: (images: EmailImageAttachment[]) => EmailImageAttachment[]) => void;
   onUploaded: () => void;
 }) {
+  const config = useConfig();
   const [uploading, setUploading] = useState(false);
 
   async function addComp(files: File[]) {
@@ -159,6 +161,13 @@ export function AiAttachments(props: {
               </li>
             ))}
           </ul>
+        )}
+        {/* A guest's pictures stay in their browser, so the AI is only told what they are called and how big they are. */}
+        {props.images.length > 0 && !config.userId && (
+          <p className="mt-2 text-[11px] leading-snug text-amber-800">
+            Without an account, the AI cannot see your pictures. It only gets each one&apos;s name and size, so clear file names help (logo.png, banner.png).
+            {config.authAvailable && " Sign in and it sees the pictures themselves."}
+          </p>
         )}
       </DropZone>
     </div>

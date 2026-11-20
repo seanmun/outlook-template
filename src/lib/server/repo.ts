@@ -111,6 +111,23 @@ export interface TemplateRepo {
 export interface AiUsageRepo {
   /** Uses up one request for this person. Returns how many are left today, or -1 if they had none left. */
   take(userId: string, dailyLimit: number): Promise<number>;
+  /**
+   * Uses up one request for a visitor without an account. Returns how many are left today for all
+   * guests together (0 = that was the last), or -1 when this browser has used its share, -2 when
+   * this network has, -3 when all guests together have. Nothing is used up on a negative answer.
+   */
+  takeGuest(guest: GuestKeys, limits: GuestAiLimits): Promise<number>;
+}
+
+/** Who a guest is, for counting only: scrambled ids for their browser and their network address. */
+export interface GuestKeys {
+  browser: string;
+  network: string;
+}
+export interface GuestAiLimits {
+  perBrowser: number;
+  perNetwork: number;
+  total: number;
 }
 
 /** Who has a team email open right now, so a second person can be told before they both edit it. */

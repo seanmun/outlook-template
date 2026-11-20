@@ -12,10 +12,10 @@ import { buildExportPackage, MAX_BUTTON_PICTURE_BYTES, MissingImageError, type B
 import { ExportFailedError, ExporterUnavailableError, type ExporterId } from "@/lib/export/types";
 import { CfbTooLargeError } from "@/lib/export/cfb-writer";
 import { MAX_UPLOAD_BYTES, readImageInfo } from "./image-info";
-import { UUID_RE, type AiUsageRepo, type AssetRepo, type EmailRepo, type PresenceRepo, type SavedModuleRepo, type Scope, type TemplateRepo } from "./repo";
-import { AI_DAILY_LIMIT, formatMb, limitsFor } from "@/lib/limits";
+import { UUID_RE, type AiUsageRepo, type GuestAiLimits, type GuestKeys, type AssetRepo, type EmailRepo, type PresenceRepo, type SavedModuleRepo, type Scope, type TemplateRepo } from "./repo";
+import { AI_DAILY_LIMIT, GUEST_AI_LIMITS, formatMb, limitsFor } from "@/lib/limits";
 import { DEFAULT_TEMPLATE_IDS } from "@/lib/email/templates";
-import { alertError, errorText } from "./alerts";
+import { alertError, alertGuestAiCap, errorText } from "./alerts";
 import { imageInUseMessage, imageIsUsed, usesImage, type ImageUsage } from "@/lib/image-usage";
 
 export interface HandlerContext {
@@ -127,6 +127,29 @@ export async function takeAiRequest(ctx: HandlerContext): Promise<Response | nul
     return errorResponse(503, "AI is not available right now. Everything else works as normal.");
   }
   if (left < 0) return errorResponse(429, `You have used today\u2019s ${AI_DAILY_LIMIT} AI requests. You get more tomorrow, and everything else still works.`);
+  return null;
+}
+
+const GUEST_SIGN_UP = "Create a free account at www.outlooksucks.email for " + AI_DAILY_LIMIT + " a day, or come back tomorrow. Everything else still works.";
+
+/**
+ * The same check for a visitor without an account: one of today's guest requests is used up, and
+ * the visitor is refused once their browser, their network, or all guests together have had the
+ * day's share. Like the signed-in check, a request that cannot be counted does not run.
+ */
+export async function takeGuestAiRequest(ctx: Pick<HandlerContext, "aiUsage">, guest: GuestKeys, limits: GuestAiLimits = GUEST_AI_LIMITS): Promise<Response | null> {
+  let left: number;
+  try {
+    left = await ctx.aiUsage.takeGuest(guest, limits);
+  } catch (e) {
+    console.error("Guest AI usage could not be counted", e);
+    await alertError({ kind: "ai", message: `AI requests from visitors without an account could not be counted, so AI is refusing them: ${errorText(e)}`, where: "Counting guest AI requests" });
+    return errorResponse(503, "AI is not available right now. Everything else works as normal.");
+  }
+  if (left === -1) return errorResponse(429, `You have used today\u2019s ${limits.perBrowser} free AI requests. ${GUEST_SIGN_UP}`);
+  if (left === -2) return errorResponse(429, `People on your network have used today\u2019s free AI requests. ${GUEST_SIGN_UP}`);
+  if (left < 0) return errorResponse(429, `Today\u2019s free AI requests for visitors without an account are all used. ${GUEST_SIGN_UP}`);
+  if (left === 0) await alertGuestAiCap(limits.total);
   return null;
 }
 

@@ -14,6 +14,7 @@ import { storesFor } from "@/lib/client/stores";
 import { DEFAULT_BRAND_ID } from "@/lib/email/brands";
 import { newEmailDocument } from "@/lib/email/starter";
 import { emailFromTemplate } from "@/lib/email/templates";
+import { GUEST_AI_ENABLED, GUEST_AI_LIMITS } from "@/lib/limits";
 
 /** How many templates show before "View more". */
 const TEMPLATES_SHOWN = 3;
@@ -90,7 +91,7 @@ function DescribeIt() {
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-neutral-500">
             {on ? (
-              "It only uses the blocks in this builder, and it will not make up links or facts."
+              config.userId || !GUEST_AI_ENABLED ? "It only uses the blocks in this builder, and it will not make up links or facts." : `Free to try without an account: ${GUEST_AI_LIMITS.perBrowser} AI requests a day. It only uses the blocks in this builder, and it will not make up links or facts.`
             ) : signInFirst ? (
               <>
                 <Link href="/sign-in" className="font-medium text-neutral-900 underline underline-offset-2">

@@ -13,7 +13,7 @@ import "server-only";
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { EmailDocument, ModuleInstance } from "@/lib/email/document";
-import { PRESENCE_WINDOW_MS, type AiUsageRepo, type AssetRecord, type AssetRepo, type EmailRecord, type EmailRepo, type NewAsset, type PresenceRepo, type Scope, type SavedModuleRecord, type SavedModuleRepo, type TemplateRecord, type TemplateRepo } from "./repo";
+import { PRESENCE_WINDOW_MS, type AiUsageRepo, type GuestAiLimits, type GuestKeys, type AssetRecord, type AssetRepo, type EmailRecord, type EmailRepo, type NewAsset, type PresenceRepo, type Scope, type SavedModuleRecord, type SavedModuleRepo, type TemplateRecord, type TemplateRepo } from "./repo";
 
 export const ASSET_BUCKET = "email-assets";
 
@@ -355,5 +355,12 @@ export class SupabaseAiUsageRepo implements AiUsageRepo {
     const { data, error } = await this.db.rpc("use_ai_request", { daily_limit: dailyLimit });
     if (error) fail("count AI request", error);
     return typeof data === "number" ? data : -1;
+  }
+
+  async takeGuest(guest: GuestKeys, limits: GuestAiLimits) {
+    const { data, error } = await this.db.rpc("use_guest_ai_request", { browser_key: guest.browser, network_key: guest.network, browser_limit: limits.perBrowser, network_limit: limits.perNetwork, total_limit: limits.total });
+    if (error) fail("count guest AI request", error);
+    if (typeof data !== "number" || data === -4) throw new Error("count guest AI request: unexpected answer");
+    return data;
   }
 }

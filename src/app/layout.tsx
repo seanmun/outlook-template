@@ -11,6 +11,7 @@ import { ConfigProvider, type ServerConfig } from "@/lib/client/config";
 import { publicConfig } from "@/lib/server/config";
 import { exporterStatuses } from "@/lib/export/exporters";
 import { isAccountFreeHost, SITE_URL } from "@/lib/site";
+import { GUEST_AI_ENABLED } from "@/lib/limits";
 import { TEAMS_ENABLED } from "@/lib/teams";
 import { pageMetadata, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE } from "@/lib/seo";
 import "./globals.css";
@@ -51,6 +52,13 @@ export const dynamic = "force-dynamic";
  * the sign-in check in proxy.ts, and Clerk then refuses to answer. The "page not found" page needs
  * no account, so that visitor is simply treated as signed out instead of crashing the page.
  */
+/** AI on the backup address, where nobody can sign in: on while guest AI is, with the guest allowance. */
+function guestAi(): ServerConfig["ai"] {
+  const ai = publicConfig();
+  if (GUEST_AI_ENABLED && ai.mode === "production" && ai.ai.enabled) return ai.ai;
+  return { enabled: false, reason: "AI needs an account, and accounts are not available on this address. Everything else works here." };
+}
+
 async function signedInSession() {
   try {
     return await auth();
@@ -64,7 +72,7 @@ async function signedInSession() {
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const accountFree = isAccountFreeHost((await headers()).get("host"));
   const config: ServerConfig = accountFree
-    ? { mode: "demo", missing: [], accountFree: true, ai: { enabled: false, reason: "AI needs an account, and accounts are not available on this address. Everything else works here." }, exporters: exporterStatuses() }
+    ? { mode: "demo", missing: [], accountFree: true, ai: guestAi(), exporters: exporterStatuses() }
     : { ...publicConfig(), exporters: exporterStatuses() };
   const production = config.mode === "production";
   const session = production ? await signedInSession() : null;

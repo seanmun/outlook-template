@@ -1,6 +1,6 @@
 /** In-memory repositories with the same ownership semantics as the Supabase RLS policies. Used by tests. */
 import type { EmailDocument } from "@/lib/email/document";
-import { PRESENCE_WINDOW_MS, type AiUsageRepo, type AssetRecord, type AssetRepo, type EmailRecord, type EmailRepo, type NewAsset, type PresenceRepo, type Scope, type SavedModuleRecord, type SavedModuleRepo, type TemplateRecord, type TemplateRepo } from "./repo";
+import { PRESENCE_WINDOW_MS, type AiUsageRepo, type GuestAiLimits, type GuestKeys, type AssetRecord, type AssetRepo, type EmailRecord, type EmailRepo, type NewAsset, type PresenceRepo, type Scope, type SavedModuleRecord, type SavedModuleRepo, type TemplateRecord, type TemplateRepo } from "./repo";
 
 /** The rule every table follows: a team space's rows belong to the team; personal rows belong to their owner. */
 const inScope = (scope: Scope, r: { ownerId: string; workspaceId: string | null }) =>
@@ -166,5 +166,19 @@ export class MemoryAiUsageRepo implements AiUsageRepo {
     if (n >= dailyLimit) return -1;
     this.used.set(userId, n + 1);
     return dailyLimit - n - 1;
+  }
+
+  guests = new Map<string, number>();
+  async takeGuest(guest: GuestKeys, limits: GuestAiLimits) {
+    const b = this.guests.get(`b:${guest.browser}`) ?? 0;
+    const n = this.guests.get(`n:${guest.network}`) ?? 0;
+    const t = this.guests.get("all") ?? 0;
+    if (t >= limits.total) return -3;
+    if (b >= limits.perBrowser) return -1;
+    if (n >= limits.perNetwork) return -2;
+    this.guests.set(`b:${guest.browser}`, b + 1);
+    this.guests.set(`n:${guest.network}`, n + 1);
+    this.guests.set("all", t + 1);
+    return limits.total - t - 1;
   }
 }

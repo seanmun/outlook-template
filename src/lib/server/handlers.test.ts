@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import JSZip from "jszip";
 import { sampleEmailDocument } from "@/lib/email/starter";
 import { sampleBytes } from "@/lib/email/samples";
@@ -12,7 +12,7 @@ import { newEmailDocument } from "@/lib/email/starter";
 import { createEmail, deleteEmail, exportForDemo, exportForUser, getEmail, listAssets, listEmails, readAsset, updateEmail, uploadAsset, type HandlerContext } from "./handlers";
 import { MemoryAiUsageRepo, MemoryAssetRepo, MemoryEmailRepo, MemoryPresenceRepo, MemorySavedModuleRepo, MemoryTemplateRepo } from "./memory-repo";
 import { deleteAsset, leavePresence, touchPresence } from "./handlers";
-import { copyToLibrary, takeAiRequest, type CopyTarget } from "./handlers";
+import { copyToLibrary, takeAiRequest, takeGuestAiRequest, type CopyTarget } from "./handlers";
 import { AI_DAILY_LIMIT } from "@/lib/limits";
 import { PRESENCE_WINDOW_MS } from "./repo";
 
@@ -566,7 +566,7 @@ describe("AI requests per day", () => {
   it("refuses when signed out, and when the count cannot be kept", async () => {
     const { as } = setup();
     expect((await takeAiRequest(as(null)))?.status).toBe(401);
-    const broken = { ...as("alice"), aiUsage: { take: async () => { throw new Error("database down"); } } };
+    const broken = { ...as("alice"), aiUsage: { take: async () => { throw new Error("database down"); }, takeGuest: async () => { throw new Error("database down"); } } };
     expect((await takeAiRequest(broken))?.status).toBe(503);
   });
 });
@@ -629,5 +629,55 @@ describe("deleting images", () => {
     expect((await deleteAsset(as("alice"), teamImage)).status).toBe(404);
     expect((await deleteAsset(as("bob", "org_2"), teamImage)).status).toBe(404);
     expect((await deleteAsset(as("bob", "org_1"), teamImage)).status).toBe(200);
+  });
+});
+
+describe("AI for visitors without an account", () => {
+  const limits = { perBrowser: 2, perNetwork: 3, total: 5 };
+  const quiet = async (fn: () => Promise<void>) => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await fn();
+    } finally {
+      log.mockRestore();
+    }
+  };
+
+  it("gives each browser a small daily share and then asks them to make an account", async () => {
+    const ctx = { aiUsage: new MemoryAiUsageRepo() };
+    const me = { browser: "browser-1", network: "office" };
+    expect(await takeGuestAiRequest(ctx, me, limits)).toBeNull();
+    expect(await takeGuestAiRequest(ctx, me, limits)).toBeNull();
+    const over = await takeGuestAiRequest(ctx, me, limits);
+    expect(over?.status).toBe(429);
+    expect(((await over!.json()) as { error: string }).error).toMatch(/today\u2019s 2 free AI requests.*free account/);
+    // Someone else in the same office still has their own share.
+    expect(await takeGuestAiRequest(ctx, { browser: "browser-2", network: "office" }, limits)).toBeNull();
+  });
+
+  it("caps a whole network, so clearing cookies does not give unlimited requests", async () => {
+    const ctx = { aiUsage: new MemoryAiUsageRepo() };
+    for (let i = 0; i < 3; i++) expect(await takeGuestAiRequest(ctx, { browser: `fresh-${i}`, network: "office" }, limits)).toBeNull();
+    const over = await takeGuestAiRequest(ctx, { browser: "fresh-again", network: "office" }, limits);
+    expect(over?.status).toBe(429);
+    expect(((await over!.json()) as { error: string }).error).toMatch(/your network/);
+    expect(await takeGuestAiRequest(ctx, { browser: "elsewhere", network: "home" }, limits)).toBeNull();
+  });
+
+  it("caps all guests together and refuses everyone after that", async () => {
+    const ctx = { aiUsage: new MemoryAiUsageRepo() };
+    for (let i = 0; i < 5; i++) expect(await takeGuestAiRequest(ctx, { browser: `b${i}`, network: `n${i}` }, limits)).toBeNull();
+    const over = await takeGuestAiRequest(ctx, { browser: "new", network: "new" }, limits);
+    expect(over?.status).toBe(429);
+    expect(((await over!.json()) as { error: string }).error).toMatch(/all used/);
+    // A refusal uses nothing up.
+    expect(ctx.aiUsage.guests.get("all")).toBe(5);
+  });
+
+  it("refuses when the count cannot be kept, rather than running uncounted", async () => {
+    await quiet(async () => {
+      const broken = { aiUsage: { take: async () => 1, takeGuest: async () => { throw new Error("database down"); } } };
+      expect((await takeGuestAiRequest(broken, { browser: "b", network: "n" }, limits))?.status).toBe(503);
+    });
   });
 });
