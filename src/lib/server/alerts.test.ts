@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { AlertLimiter, alertError, alertGuestAiCap, alertSignup, alertVerificationEmail, errorText, scrub, type AlertDeps } from "./alerts";
+import { AlertLimiter, alertError, alertGuestAiCap, alertSignup, maskEmail, alertVerificationEmail, errorText, scrub, type AlertDeps } from "./alerts";
 
 const TELEGRAM = { token: "123456789:AAH-secret_TOKEN_value_0123456789abcd", chatId: "-100123" };
 
@@ -21,7 +21,7 @@ describe("signup notices", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0].chatId).toBe("-100123");
     expect(calls[0].text).toContain("OUTLOOKSUCKS NEW SIGNUP");
-    expect(calls[0].text).toContain("User: pat@example.com");
+    expect(calls[0].text).toContain("User: pa***@example.com");
     expect(calls[0].text).toContain("Name: Pat Lee");
     expect(calls[0].text).toContain("Signed up with: google");
     expect(calls[0].text).toContain("Time: 2026-11-13T21:00:00.000Z");
@@ -111,7 +111,7 @@ describe("sign-up email notices", () => {
     const { calls, deps } = setup();
     expect(await alertVerificationEmail({ slug: "verification_code", to: "pat@example.com", userId: null, status: "queued", deliveredByClerk: true }, deps)).toBe(true);
     expect(calls[0].text).toContain("OUTLOOKSUCKS SIGN-UP EMAIL SENT");
-    expect(calls[0].text).toContain("To: pat@example.com");
+    expect(calls[0].text).toContain("To: pa***@example.com");
     expect(calls[0].text).toContain("Kind: verification_code");
     expect(calls[0].text).toContain("Status: queued");
   });
@@ -141,5 +141,29 @@ describe("guest AI limit notice", () => {
     expect(await alertGuestAiCap(200, deps)).toBe(true);
     expect(calls[0].text).toContain("OUTLOOKSUCKS GUEST AI LIMIT REACHED");
     expect(calls[0].text).toContain("all 200 AI requests");
+  });
+});
+
+describe("hiding email addresses in notices", () => {
+  it("keeps the first two letters and the domain", () => {
+    expect(maskEmail("pat.lee@example.com")).toBe("pa***@example.com");
+    expect(maskEmail("  Jo@company.co.uk ")).toBe("J***@company.co.uk");
+    expect(maskEmail("a@b.io")).toBe("a***@b.io");
+    expect(maskEmail("not-an-address")).toBe("(hidden)");
+    expect(maskEmail("@example.com")).toBe("(hidden)");
+    expect(maskEmail("")).toBe("");
+    expect(maskEmail(null)).toBe("");
+  });
+
+  it("never sends a full address in a sign-up or sign-up email notice", async () => {
+    const { calls, deps } = setup();
+    await alertSignup({ email: "pat.lee@example.com", name: "Pat Lee", method: "email" }, deps);
+    await alertVerificationEmail({ slug: "verification_code", to: "pat.lee@example.com", deliveredByClerk: true }, deps);
+    await alertVerificationEmail({ slug: "verification_code", to: "pat.lee@example.com", deliveredByClerk: true, suppressionReason: "bounced" }, deps);
+    expect(calls).toHaveLength(3);
+    for (const c of calls) {
+      expect(c.text).not.toContain("pat.lee");
+      expect(c.text).toContain("pa***@example.com");
+    }
   });
 });

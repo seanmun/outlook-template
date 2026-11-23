@@ -59,6 +59,19 @@ async function send(text: string, deps: AlertDeps): Promise<boolean> {
 const stamp = (deps: AlertDeps) => `Time: ${(deps.now?.() ?? new Date()).toISOString()}`;
 const cut = (value: unknown, max: number) => scrub(typeof value === "string" ? value : value == null ? "" : String(value)).slice(0, max);
 
+/**
+ * Hides most of an email address before it leaves the site: the first two letters, then the domain
+ * ("pa***@example.com"). Enough to recognise a sign-up or match it to a support request, not enough
+ * to hand anyone's address to a third party.
+ */
+export function maskEmail(value: unknown): string {
+  const email = typeof value === "string" ? value.trim() : "";
+  const at = email.lastIndexOf("@");
+  if (at < 1 || at === email.length - 1) return email ? "(hidden)" : "";
+  const name = email.slice(0, at);
+  return `${name.slice(0, name.length > 2 ? 2 : 1)}***@${email.slice(at + 1)}`;
+}
+
 /* ---------------- New accounts ---------------- */
 
 export interface SignupAlert {
@@ -69,7 +82,7 @@ export interface SignupAlert {
 }
 
 export async function alertSignup(signup: SignupAlert, deps: AlertDeps = {}): Promise<boolean> {
-  const lines = ["🎉 OUTLOOKSUCKS NEW SIGNUP", "", `User: ${cut(signup.email, 200) || "(no email given)"}`];
+  const lines = ["🎉 OUTLOOKSUCKS NEW SIGNUP", "", `User: ${cut(maskEmail(signup.email), 200) || "(no email given)"}`];
   if (signup.name) lines.push(`Name: ${cut(signup.name, 120)}`);
   if (signup.method) lines.push(`Signed up with: ${cut(signup.method, 60)}`);
   lines.push("", stamp(deps));
@@ -98,7 +111,7 @@ export interface SentEmail {
  * A "new signup" notice follows when they finish. An email Clerk did not send is always reported.
  *
  * Emails to people who already have an account (sign-in codes) and invitations are left out, to
- * keep the group quiet. Only the address and kind are passed on, never the subject or the body:
+ * keep the group quiet. Only the masked address and kind are passed on, never the subject or the body:
  * both can hold the code or link itself.
  */
 export async function alertVerificationEmail(email: SentEmail, deps: AlertDeps = {}): Promise<boolean> {
@@ -106,7 +119,7 @@ export async function alertVerificationEmail(email: SentEmail, deps: AlertDeps =
   const notSent = !!email.suppressionReason || email.deliveredByClerk === false || /fail|bounc|reject|suppress/i.test(email.status ?? "");
   const forSignup = !email.userId && !slug.includes("invitation") && !slug.includes("sign_in");
   if (!notSent && !forSignup) return false;
-  const lines = [notSent ? "\u26a0\ufe0f OUTLOOKSUCKS EMAIL NOT SENT" : "\ud83d\udce7 OUTLOOKSUCKS SIGN-UP EMAIL SENT", "", `To: ${cut(email.to, 200) || "(no address given)"}`];
+  const lines = [notSent ? "\u26a0\ufe0f OUTLOOKSUCKS EMAIL NOT SENT" : "\ud83d\udce7 OUTLOOKSUCKS SIGN-UP EMAIL SENT", "", `To: ${cut(maskEmail(email.to), 200) || "(no address given)"}`];
   if (slug) lines.push(`Kind: ${cut(slug, 80)}`);
   if (email.status) lines.push(`Status: ${cut(email.status, 60)}`);
   if (email.suppressionReason) lines.push(`Reason: ${cut(email.suppressionReason, 200)}`);

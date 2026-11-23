@@ -9,7 +9,7 @@ export default function PrivacyPage() {
   return (
     <LegalPage
       title="Privacy"
-      updated="20 November 2026"
+      updated="22 November 2026"
       intro="The short version: you can use this site without an account, and when you do, the emails you build stay in your own browser. This page says exactly what leaves your device, when, and where it goes."
     >
       <section>
@@ -46,7 +46,7 @@ export default function PrivacyPage() {
         <p>Accounts are optional and may not be available at all times. When you sign in:</p>
         <ul>
           <li>
-            <strong>Sign-in is handled by Clerk.</strong> Clerk stores your email address and manages your session. When a sign-up email is sent and when an account is created, the maintainer is told the email address through Telegram, a messaging service, so sign-up problems can be spotted. While accounts are switched on, Clerk&apos;s sign-in script loads on the site and sets the cookies needed for signing in, including for visitors who have not signed in yet.
+            <strong>Sign-in is handled by Clerk.</strong> Clerk stores your email address and manages your session. While accounts are switched on, Clerk&apos;s sign-in script loads on the site and sets the cookies needed for signing in, including for visitors who have not signed in yet.
           </li>
           <li>
             <strong>Your drafts and uploaded images are stored on Supabase,</strong> so you can reach them from any device. Only your account can read them.
@@ -70,7 +70,7 @@ export default function PrivacyPage() {
         <p>
           The site is hosted on Vercel. Like any web host, it records basic technical information about requests, such as IP address, browser type and the page requested, to operate and secure the service.
         </p>
-        <p>If the site hits an error, a short technical report (what went wrong and on which page) is sent to the maintainer through Telegram so it can be fixed. It does not include your emails or images.</p>
+        <p>If the site hits an error, a short technical report (what went wrong and on which page) is sent to the maintainer so it can be fixed. It does not include your emails or images.</p>
       </section>
 
       <section>
