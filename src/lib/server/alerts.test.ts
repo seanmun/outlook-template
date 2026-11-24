@@ -22,7 +22,8 @@ describe("signup notices", () => {
     expect(calls[0].chatId).toBe("-100123");
     expect(calls[0].text).toContain("OUTLOOKSUCKS NEW SIGNUP");
     expect(calls[0].text).toContain("User: pa***@example.com");
-    expect(calls[0].text).toContain("Name: Pat Lee");
+    expect(calls[0].text).toContain("Name: Pat");
+    expect(calls[0].text).not.toContain("Lee");
     expect(calls[0].text).toContain("Signed up with: google");
     expect(calls[0].text).toContain("Time: 2026-11-13T21:00:00.000Z");
   });

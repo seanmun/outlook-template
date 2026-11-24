@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   if (event.type === "user.created") {
     const user = event.data;
     const email = user.email_addresses?.find((e) => e.id === user.primary_email_address_id)?.email_address ?? user.email_addresses?.[0]?.email_address ?? null;
-    const name = [user.first_name, user.last_name].filter(Boolean).join(" ") || null;
+    const name = user.first_name || null;
     const provider = user.external_accounts?.[0]?.provider?.replace(/^oauth_/, "") ?? null;
     await alertSignup({ email, name, method: provider ?? "email" });
   }

@@ -83,7 +83,9 @@ export interface SignupAlert {
 
 export async function alertSignup(signup: SignupAlert, deps: AlertDeps = {}): Promise<boolean> {
   const lines = ["🎉 OUTLOOKSUCKS NEW SIGNUP", "", `User: ${cut(maskEmail(signup.email), 200) || "(no email given)"}`];
-  if (signup.name) lines.push(`Name: ${cut(signup.name, 120)}`);
+  // First name only: enough to recognise a sign-up, without sending a full name to the chat.
+  const firstName = (signup.name ?? "").trim().split(/\s+/)[0];
+  if (firstName) lines.push(`Name: ${cut(firstName, 40)}`);
   if (signup.method) lines.push(`Signed up with: ${cut(signup.method, 60)}`);
   lines.push("", stamp(deps));
   return send(lines.join("\n"), deps);
